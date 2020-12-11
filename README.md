@@ -1,3 +1,5 @@
+# Additional changes from forked repo bneyshabur/generalization:
+
 # PyTorch Image Classification
 
 Following papers are implemented using PyTorch.
