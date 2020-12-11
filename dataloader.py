@@ -5,6 +5,7 @@ import numpy as np
 
 import torch
 import torch.utils.data
+from torch.utils.data import TensorDataset
 
 import torchvision
 import torchvision.models
@@ -12,6 +13,7 @@ import torchvision.transforms
 
 import transforms
 
+import copy
 
 class Dataset(object):
     def __init__(self, config):
@@ -25,11 +27,30 @@ class Dataset(object):
         self.use_random_erasing = ('use_random_erasing' in config.keys()
                                    ) and config['use_random_erasing']
 
-    def get_datasets(self):
+    def get_datasets(self, num_per_class=None):
         train_dataset = getattr(torchvision.datasets, self.config['dataset'])(
             self.dataset_dir, train=True, transform=self.train_transform)
         test_dataset = getattr(torchvision.datasets, self.config['dataset'])(
             self.dataset_dir, train=False, transform=self.test_transform)
+        
+        if num_per_class:
+            loader = torch.utils.data.DataLoader(train_dataset, batch_size=1000000, shuffle=False)
+            for images, labels in loader:
+                break
+                
+            for cls in range(torch.max(labels).item() + 1):
+                clsimages = images[(labels == cls)][:num_per_class]
+                clslabels = labels[(labels == cls)][:num_per_class]
+                
+                if cls == 0:
+                    all_images = copy.deepcopy(clsimages)
+                    all_labels = copy.deepcopy(clslabels)
+                else:
+                    all_images = torch.cat([all_images, clsimages])
+                    all_labels = torch.cat([all_labels, clslabels])
+            
+            return TensorDataset(all_images, all_labels), test_dataset
+        
         return train_dataset, test_dataset
 
     def _get_random_erasing_train_transform(self):
@@ -211,16 +232,16 @@ def get_loader(config):
     use_gpu = config['use_gpu']
 
     dataset_name = config['dataset']
-    assert dataset_name in ['CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST']
+    assert dataset_name in ['CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST', 'MiniMNIST']
 
     if dataset_name in ['CIFAR10', 'CIFAR100']:
         dataset = CIFAR(config)
-    elif dataset_name == 'MNIST':
+    elif dataset_name in ['MNIST', 'MiniMNIST']:
         dataset = MNIST(config)
     elif dataset_name == 'FashionMNIST':
         dataset = FashionMNIST(config)
 
-    train_dataset, test_dataset = dataset.get_datasets()
+    train_dataset, test_dataset = dataset.get_datasets(num_per_class=128 if dataset_name == 'MiniMNIST' else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
