@@ -33,9 +33,9 @@ class Dataset(object):
             dset = 'MNIST'
 
         train_dataset = getattr(torchvision.datasets, dset)(
-            self.dataset_dir, train=True, transform=self.train_transform)
+            self.dataset_dir, train=True, transform=self.train_transform, download=True)
         test_dataset = getattr(torchvision.datasets, dset)(
-            self.dataset_dir, train=False, transform=self.test_transform)
+            self.dataset_dir, train=False, transform=self.test_transform, download=True)
         
         if num_per_class:
             loader = torch.utils.data.DataLoader(train_dataset, batch_size=1000000, shuffle=False)
