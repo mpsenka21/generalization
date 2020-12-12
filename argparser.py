@@ -133,7 +133,8 @@ def _get_data_config(args):
         'use_mixup',
         'mixup_alpha',
         'fixlam',
-        'doublesum_batches'
+        'doublesum_batches',
+        'compute_mixup_reg'
     ]
     json_keys = ['random_erasing_area_ratio_range']
     config = _args2config(args, keys, json_keys)

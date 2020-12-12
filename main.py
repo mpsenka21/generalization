@@ -135,6 +135,7 @@ def parse_args():
     parser.add_argument('--fixlam', action='store_true', default=False)
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
+    parser.add_argument('--compute_mixup_reg', type=int, default=0) # 1 to compute mixup regularization (normal), 0 to skip
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -233,6 +234,29 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 l = apx_callbacks[k](images, labels, model)
                 apx_meters[k].update(l.item(), num)
 
+        print('hi')
+        if data_config['compute_mixup_reg'] > 0:
+            # batch sizee
+            N = data_config['batch_size']
+
+            # original shape of images
+            data_shape = data.shape
+
+            # data_flat is a stack of rows, where each row
+            # is a flattened data point:
+            # --- data_flat[i,:] = data[i,:,...,:].reshape((1, int(data.numel() / N)))
+            data_flat = data.reshape((N, int(data.numel() / N)))
+            
+            # y_vec is a stack of rows, where each row is the one_hot version
+            # of the correct label
+            y_vec = torch.zeros((N, targets.max() + 1))
+            y_vec[np.arange(N), targets] = 1
+
+            # vec to take action of hessian on
+            V = torch.ones((1, int(data.numel() / N)))
+            hello = apx.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'y', V)
+            print(hello)
+
         if run_config['tensorboard']:
             writer.add_scalar('Train/RunningLoss', loss_, global_step)
             writer.add_scalar('Train/RunningAccuracy', accuracy, global_step)
@@ -285,6 +309,7 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
 
         with torch.no_grad():
             outputs = model(data)
+
         loss = criterion(outputs, targets)
 
         _, preds = torch.max(outputs, dim=1)
