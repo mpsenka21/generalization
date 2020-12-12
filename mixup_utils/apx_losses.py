@@ -103,7 +103,7 @@ def mixup_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
         miximages = miximages.cuda()
         mixlabels = mixlabels.cuda()
 
-    criterion = nn.CrossEntropyLoss(size_average=True)
+    criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
     return criterion(predictions, mixlabels)
 
@@ -116,6 +116,6 @@ def doublesum_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
         miximages = miximages.cuda()
         mixlabels = mixlabels.cuda()
         
-    criterion = nn.CrossEntropyLoss(size_average=True)
+    criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
     return criterion(predictions, mixlabels)
