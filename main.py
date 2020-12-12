@@ -168,9 +168,9 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
     }
 
     apx_callbacks = {
-        'vanilla': apx.vanilla_loss,
-        'mixup': lambda imgs, lbls, mdl: apx.mixup_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl),
-        'doublesum': lambda imgs, lbls, mdl: apx.doublesum_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl)
+        'vanilla': lambda imgs, lbls, mdl: apx.vanilla_loss(imgs, lbls, mdl, run_config['use_gpu']),
+        'mixup': lambda imgs, lbls, mdl: apx.mixup_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl, run_config['use_gpu']),
+        'doublesum': lambda imgs, lbls, mdl: apx.doublesum_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl, run_config['use_gpu'])
     }
 
     start = time.time()
@@ -205,8 +205,6 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         if run_config['use_gpu']:
             data = data.cuda()
             targets = targets.cuda()
-            images = images.cuda()
-            labels = labels.cuda()
 
         optimizer.zero_grad()
 

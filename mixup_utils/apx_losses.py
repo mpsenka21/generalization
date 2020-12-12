@@ -42,7 +42,11 @@ def hvp(g, x, y, v):
 # output: some loss
 
 # warmup/for a sanity check: true loss
-def vanilla_loss(images, labels, model):
+def vanilla_loss(images, labels, model, use_gpu):
+    if use_gpu:
+        images = images.cuda()
+        labels = labels.cuda()
+
     predictions = model(images)
     criterion = nn.CrossEntropyLoss(size_average=True)
     return criterion(predictions, labels)
@@ -53,8 +57,12 @@ def vanilla_loss(images, labels, model):
 # note: difference between CrossEntropyLoss and nn.CrossEntropyLoss is that
 # the nn version takes labels as targets whereas the local one
 # takes one-hot vectors as targets, which is important for mixup
-def mixup_loss(images, labels, alpha, n_classes, fixlam, model):
+def mixup_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
     miximages, mixlabels = mixup(images, labels, alpha, n_classes, fixlam)
+    if use_gpu:
+        miximages = miximages.cuda()
+        mixlabels = mixlabels.cuda()
+
     criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
     return criterion(predictions, mixlabels)
@@ -62,8 +70,12 @@ def mixup_loss(images, labels, alpha, n_classes, fixlam, model):
 # double sum loss
 # mixup where every pair of images is combined
 # fixlam: whether setting lambda to 0.5 everywhere
-def doublesum_loss(images, labels, alpha, n_classes, fixlam, model):
+def doublesum_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
     miximages, mixlabels = full_mixup(images, labels, alpha, n_classes, fixlam)
+    if use_gpu:
+        miximages = miximages.cuda()
+        mixlabels = mixlabels.cuda()
+        
     criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
     return criterion(predictions, mixlabels)
