@@ -160,6 +160,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
     loss_meter = AverageMeter()
     accuracy_meter = AverageMeter()
 
+    # approximate losses and average meters are assembled here
     apx_meters = {
         'vanilla': AverageMeter(),
         'mixup': AverageMeter(),
@@ -204,6 +205,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         if run_config['use_gpu']:
             data = data.cuda()
             targets = targets.cuda()
+            images = images.cuda()
+            labels = labels.cuda()
 
         optimizer.zero_grad()
 
@@ -226,6 +229,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         loss_meter.update(loss_, num)
         accuracy_meter.update(accuracy, num)
 
+        # this is where the approximate losses are computed
         if step < data_config['doublesum_batches']:
             for k in apx_meters.keys():
                 l = apx_callbacks[k](images, labels, model)
