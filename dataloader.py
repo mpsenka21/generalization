@@ -28,9 +28,13 @@ class Dataset(object):
                                    ) and config['use_random_erasing']
 
     def get_datasets(self, num_per_class=None):
-        train_dataset = getattr(torchvision.datasets, self.config['dataset'])(
+        dset = self.config['dataset']
+        if dset == 'MiniMNIST':
+            dset = 'MNIST'
+
+        train_dataset = getattr(torchvision.datasets, dset)(
             self.dataset_dir, train=True, transform=self.train_transform)
-        test_dataset = getattr(torchvision.datasets, self.config['dataset'])(
+        test_dataset = getattr(torchvision.datasets, dset)(
             self.dataset_dir, train=False, transform=self.test_transform)
         
         if num_per_class:
