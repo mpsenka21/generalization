@@ -16,24 +16,34 @@ from utils import (mixup, full_mixup, CrossEntropyLoss)
 
 # given a pytorch function g (twice differentiable),
 # compute matrix-vector products of the form (\nabla_{(x : y)}^2 g)v
-def hvp(g, x, y, v):
+# x and y are the input variables for g
+# x1 and x2 are strings, either 'x' or 'y'
+# --- these indicate which variables to take derivatives w.r.t.
+# v is vector to get Hessian's action on
+def hvp(g, x, y, x1, x2, v):
+    # setting up pytorch stuff to prep for backprop
     xvar = Variable(x, requires_grad=True)
     yvar = Variable(y, requires_grad=True)
     vvar = Variable(v, requires_grad=True)
+
+    # choose which variable x1var corresponds to
+    x1var = xvar if x1=='x' else yvar
+    x2var = xvar if x2=='x' else yvar
     
     score = g(xvar, yvar)
     
-    grad, = torch.autograd.grad(score, yvar, create_graph=True)
-    #print(grad)
+    grad, = torch.autograd.grad(score, x1var, create_graph=True)
+    # print(grad)
     total = torch.sum(grad * vvar)
-    #print(total)
+    # print(total)
     
     if xvar.grad:
         xvar.grad.data.zero_()
     if yvar.grad:
         yvar.grad.data.zero_()
         
-    grad2, = torch.autograd.grad(total, xvar, create_graph=True, allow_unused=True)
+    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # print(grad2)
     return grad2
 
 ### Losses ###
