@@ -118,7 +118,7 @@ def mixup(data, targets, alpha, n_classes, fixlam=False):
         lam = 0.5
     data = data * lam + data2 * (1 - lam)
     targets = targets * lam + targets2 * (1 - lam)
-
+    # print("Mixup", data.shape, targets.shape)
     return data, targets
 
 # mix all pairs together
@@ -148,6 +148,7 @@ def full_mixup(data, targets, alpha, n_classes, fixlam=False):
             all_data = torch.cat([all_data, data])
             all_targets = torch.cat([all_targets, mixtargets])
 
+    # print("Doublesum", all_data.shape, all_targets.shape)
     return all_data, all_targets
 
 
