@@ -234,6 +234,7 @@ def get_loader(config):
     batch_size = config['batch_size']
     num_workers = config['num_workers']
     use_gpu = config['use_gpu']
+    num_per_class = config['num_per_class']
 
     dataset_name = config['dataset']
     assert dataset_name in ['CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST', 'MiniMNIST']
@@ -245,7 +246,7 @@ def get_loader(config):
     elif dataset_name == 'FashionMNIST':
         dataset = FashionMNIST(config)
 
-    train_dataset, test_dataset = dataset.get_datasets(num_per_class=128 if dataset_name == 'MiniMNIST' else None)
+    train_dataset, test_dataset = dataset.get_datasets(num_per_class=num_per_class if dataset_name == 'MiniMNIST' else None)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,

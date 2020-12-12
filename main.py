@@ -112,6 +112,7 @@ def parse_args():
         type=str,
         default='CIFAR10',
         choices=['CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST', 'MiniMNIST'])
+    parser.add_argument('--num_per_class', type=int, default=128)
     parser.add_argument('--num_workers', type=int, default=7)
     # cutout configuration
     parser.add_argument('--use_cutout', action='store_true', default=False)

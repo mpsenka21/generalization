@@ -117,6 +117,7 @@ def _get_optim_config(args):
 def _get_data_config(args):
     keys = [
         'dataset',
+        'num_per_class',
         'n_classes',
         'num_workers',
         'batch_size',
