@@ -132,6 +132,8 @@ def _get_data_config(args):
         'random_erasing_max_attempt',
         'use_mixup',
         'mixup_alpha',
+        'fixlam',
+        'doublesum_batches'
     ]
     json_keys = ['random_erasing_area_ratio_range']
     config = _args2config(args, keys, json_keys)
@@ -245,8 +247,8 @@ def _cleanup_args(args):
         args.random_erasing_max_attempt = None
 
     # mixup
-    if not args.use_mixup:
-        args.mixup_alpha = None
+    #if not args.use_mixup:
+    #    args.mixup_alpha = None
 
     # TensorBoard
     if not args.tensorboard:
