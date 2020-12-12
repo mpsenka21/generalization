@@ -30,3 +30,8 @@ def hvp(g, x, y, v):
         
     grad2, = torch.autograd.grad(total, xvar, create_graph=True, allow_unused=True)
     return grad2
+
+# double sum
+def doublesum(l, x, y):
+
+    return -1
