@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import torch
 import torch.nn.functional as F
+import copy
 
 
 def str2bool(s):
@@ -104,7 +105,7 @@ def onehot(label, n_classes):
         1, label.view(-1, 1), 1)
 
 
-def mixup(data, targets, alpha, n_classes):
+def mixup(data, targets, alpha, n_classes, fixlam=False):
     indices = torch.randperm(data.size(0))
     data2 = data[indices]
     targets2 = targets[indices]
@@ -113,10 +114,41 @@ def mixup(data, targets, alpha, n_classes):
     targets2 = onehot(targets2, n_classes)
 
     lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
+    if fixlam:
+        lam = 0.5
     data = data * lam + data2 * (1 - lam)
     targets = targets * lam + targets2 * (1 - lam)
 
     return data, targets
+
+# mix all pairs together
+def full_mixup(data, targets, alpha, n_classes, fixlam=False):
+    # iterating through all choices for the first image
+    # getting mixed up
+    for i in range(data.size(0)):
+        indices = torch.ones(data.size(0), dtype=torch.int64)
+        indices.fill_(i)
+
+        data2 = data[indices]
+        targets2 = targets[indices]
+
+        targets = onehot(targets, n_classes)
+        targets2 = onehot(targets2, n_classes)
+
+        lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
+        if fixlam:
+            lam = 0.5
+        data = data * lam + data2 * (1 - lam)
+        targets = targets * lam + targets2 * (1 - lam)
+
+        if i == 0:
+            all_data = copy.deepcopy(data)
+            all_targets = copy.deepcopy(targets)
+        else:
+            all_data = torch.cat([all_data, data])
+            all_targets = torch.cat([all_targets, targets])
+
+    return all_data, all_targets
 
 
 def cross_entropy_loss(input, target, size_average=True):

@@ -1,3 +1,8 @@
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+from utils import (mixup, full_mixup, CrossEntropyLoss)
+
 # Module to compute all losses that approximate mixup training. These include:
 
 #  - Double sum (eq. 4)
@@ -30,3 +35,35 @@ def hvp(g, x, y, v):
         
     grad2, = torch.autograd.grad(total, xvar, create_graph=True, allow_unused=True)
     return grad2
+
+### Losses ###
+
+# input: images, labels, models
+# output: some loss
+
+# warmup/for a sanity check: true loss
+def vanilla_loss(images, labels, model):
+    predictions = model(images)
+    criterion = nn.CrossEntropyLoss(size_average=True)
+    return criterion(predictions, labels)
+
+# mixup loss
+# fixlam: will set lambda to 0.5
+# ----
+# note: difference between CrossEntropyLoss and nn.CrossEntropyLoss is that
+# the nn version takes labels as targets whereas the local one
+# takes one-hot vectors as targets, which is important for mixup
+def mixup_loss(images, labels, alpha, n_classes, fixlam, model):
+    miximages, mixlabels = mixup(images, labels, alpha, n_classes, fixlam)
+    criterion = CrossEntropyLoss(size_average=True)
+    predictions = model(miximages)
+    return criterion(predictions, mixlabels)
+
+# double sum loss
+# mixup where every pair of images is combined
+# fixlam: whether setting lambda to 0.5 everywhere
+def doublesum_loss(images, labels, alpha, n_classes, fixlam, model):
+    miximages, mixlabels = full_mixup(images, labels, alpha, n_classes, fixlam)
+    criterion = CrossEntropyLoss(size_average=True)
+    predictions = model(miximages)
+    return criterion(predictions, mixlabels)

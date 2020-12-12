@@ -8,6 +8,7 @@ import logging
 import argparse
 import numpy as np
 import random
+import copy
 
 import torch
 import torch.nn as nn
@@ -25,6 +26,7 @@ from dataloader import get_loader
 from utils import (str2bool, load_model, save_checkpoint, create_optimizer,
                    AverageMeter, mixup, CrossEntropyLoss)
 from argparser import get_config
+import mixup_utils.apx_losses as apx
 
 torch.backends.cudnn.benchmark = True
 
@@ -130,7 +132,9 @@ def parse_args():
     parser.add_argument('--random_erasing_max_attempt', type=int, default=20)
     # mixup configuration
     parser.add_argument('--use_mixup', action='store_true', default=False)
+    parser.add_argument('--fixlam', action='store_true', default=False)
     parser.add_argument('--mixup_alpha', type=float, default=1)
+    parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -155,9 +159,25 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
     loss_meter = AverageMeter()
     accuracy_meter = AverageMeter()
+
+    apx_meters = {
+        'vanilla': AverageMeter(),
+        'mixup': AverageMeter(),
+        'doublesum': AverageMeter()
+    }
+
+    apx_callbacks = {
+        'vanilla': apx.vanilla_loss,
+        'mixup': lambda imgs, lbls, mdl: apx.mixup_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl),
+        'doublesum': lambda imgs, lbls, mdl: apx.doublesum_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl)
+    }
+
     start = time.time()
     for step, (data, targets) in enumerate(train_loader):
         global_step += 1
+
+        images = copy.deepcopy(data)
+        labels = copy.deepcopy(targets)
 
         if data_config['use_mixup']:
             data, targets = mixup(data, targets, data_config['mixup_alpha'],
@@ -206,6 +226,11 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         loss_meter.update(loss_, num)
         accuracy_meter.update(accuracy, num)
 
+        if step < data_config['doublesum_batches']:
+            for k in apx_meters.keys():
+                l = apx_callbacks[k](images, labels, model)
+                apx_meters[k].update(l.item(), num)
+
         if run_config['tensorboard']:
             writer.add_scalar('Train/RunningLoss', loss_, global_step)
             writer.add_scalar('Train/RunningAccuracy', accuracy, global_step)
@@ -225,6 +250,11 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
+    logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}'.format(
+        apx_meters['vanilla'].avg,
+        apx_meters['mixup'].avg,
+        apx_meters['doublesum'].avg
+    ))
 
     if run_config['tensorboard']:
         writer.add_scalar('Train/Loss', loss_meter.avg, epoch)
