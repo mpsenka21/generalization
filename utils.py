@@ -132,21 +132,21 @@ def full_mixup(data, targets, alpha, n_classes, fixlam=False):
         data2 = data[indices]
         targets2 = targets[indices]
 
-        targets = onehot(targets, n_classes)
-        targets2 = onehot(targets2, n_classes)
+        mixtargets = onehot(targets, n_classes)
+        mixtargets2 = onehot(targets2, n_classes)
 
         lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
         if fixlam:
             lam = 0.5
         data = data * lam + data2 * (1 - lam)
-        targets = targets * lam + targets2 * (1 - lam)
+        mixtargets = mixtargets * lam + mixtargets2 * (1 - lam)
 
         if i == 0:
             all_data = copy.deepcopy(data)
-            all_targets = copy.deepcopy(targets)
+            all_targets = copy.deepcopy(mixtargets)
         else:
             all_data = torch.cat([all_data, data])
-            all_targets = torch.cat([all_targets, targets])
+            all_targets = torch.cat([all_targets, mixtargets])
 
     return all_data, all_targets
 
