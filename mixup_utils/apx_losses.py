@@ -105,7 +105,7 @@ def mixup_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
 
     criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
-    return criterion(predictions, mixlabels)
+    return criterion(predictions, mixlabels)#, save_path='mixup.png')
 
 # double sum loss
 # mixup where every pair of images is combined
@@ -118,4 +118,4 @@ def doublesum_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
         
     criterion = CrossEntropyLoss(size_average=True)
     predictions = model(miximages)
-    return criterion(predictions, mixlabels)
+    return criterion(predictions, mixlabels)#, save_path='doublesum.png')

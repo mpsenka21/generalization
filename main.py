@@ -234,7 +234,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 l = apx_callbacks[k](images, labels, model)
                 apx_meters[k].update(l.item(), num)
 
-        print('hi')
+        #print('hi')
         if data_config['compute_mixup_reg'] > 0:
             # batch sizee
             N = data_config['batch_size']
