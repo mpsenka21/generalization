@@ -61,8 +61,10 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
     x2var = Xvar if x2=='x' else Yvar
     
     score = loss(model_eval, Yvar)
-    
+
+    # gradient w.r.t. entire batch 
     grad, = torch.autograd.grad(score, x1var, create_graph=True)
+    # sum over batch elements (avg. at end)
     total = torch.sum(grad.sum(axis=0) * vvar)
     
     if Xvar.grad:
@@ -71,6 +73,7 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
         Yvar.grad.data.zero_()
     
     grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # sum over rows (different elements in batch)
     hvprod = (1/N)*grad2.sum(axis=0)
 
     return hvprod
