@@ -19,10 +19,11 @@ from utils import (mixup, full_mixup, CrossEntropyLoss)
 
 # needed for hvp (see below)
 
-def cross_entropy_manual(x, y):
-    x_softmax = nn.Softmax(x)
+def cross_entropy_manual(X, Y):
+    # note X.shape[0] is the batch size
+    X_softmax = X.exp() / X.exp().sum(axis=1).reshape((X.shape[0], 1))
     # TODO: check pytorch uses base 2
-    return -(y * torch.log2(x_softmax)).sum()
+    return -(Y * torch.log2(X_softmax)).sum()
 
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
@@ -43,38 +44,36 @@ def cross_entropy_manual(x, y):
 
 # TODO: deal w/ fact that zero hessian returns None object
 def hvp(loss, model, data_shape, X, Y, x1, x2, v):
-    # setting up pytorch stuff to prep for backprop
+    # setting up pytorch stuff to prepare for backprop
     vvar = Variable(v, requires_grad=True)
 
     # extract batch size
     N = X.shape[0]
-    # extract final product shape
-    prod_shape = X[0].shape if x2=='x' else Y[0].shape
-    hvprod = torch.zeros(prod_shape)
     
     Xvar = Variable(X, requires_grad=True)
     Yvar = Variable(Y, requires_grad=True)
     model_eval = model(Xvar.reshape(data_shape))
-    for i in range(N):
-        # xvar = Variable(X[i,:], requires_grad=True)
-        # yvar = Variable(Y[i,:], requires_grad=True)
-        # choose which variable x1var corresponds to
-        x1var = Xvar[i,:] if x1=='x' else Yvar[i,:]
-        x2var = Xvar[i,:] if x2=='x' else Yvar[i,:]
-        
-        score = loss(model_eval[i,:], Yvar[i,:])
-        
-        grad, = torch.autograd.grad(score, x1var, create_graph=True)
-        total = torch.sum(grad * vvar)
-        
-        if xvar.grad:
-            xvar.grad.data.zero_()
-        if yvar.grad:
-            yvar.grad.data.zero_()
-        
-        hvprod, = hvprod + torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    
+    # xvar = Variable(X[i,:], requires_grad=True)
+    # yvar = Variable(Y[i,:], requires_grad=True)
+    # choose which variable x1var corresponds to
+    x1var = Xvar if x1=='x' else Yvar
+    x2var = Xvar if x2=='x' else Yvar
+    
+    score = loss(model_eval, Yvar)
+    
+    grad, = torch.autograd.grad(score, x1var, create_graph=True)
+    total = torch.sum(grad.sum(axis=0) * vvar)
+    
+    if Xvar.grad:
+        Xvar.grad.data.zero_()
+    if Yvar.grad:
+        Yvar.grad.data.zero_()
+    
+    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    hvprod = (1/N)*grad2.sum(axis=0)
 
-    return (1/N) * hvprod
+    return hvprod
 
 ### Losses ###
 

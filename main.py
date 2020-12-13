@@ -234,28 +234,28 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 l = apx_callbacks[k](images, labels, model)
                 apx_meters[k].update(l.item(), num)
 
-        print('hi')
         if data_config['compute_mixup_reg'] > 0:
             # batch sizee
             N = data_config['batch_size']
 
             # original shape of images
             data_shape = data.shape
-
+            # datavar = torch.autograd.Variable(data), requires_grad=True)
+            # hello = model(data)
             # data_flat is a stack of rows, where each row
             # is a flattened data point:
             # --- data_flat[i,:] = data[i,:,...,:].reshape((1, int(data.numel() / N)))
             data_flat = data.reshape((N, int(data.numel() / N)))
-            
+
             # y_vec is a stack of rows, where each row is the one_hot version
             # of the correct label
-            y_vec = torch.zeros((N, targets.max() + 1))
+            y_vec = torch.zeros((N, targets.max() + 1)).cuda()
             y_vec[np.arange(N), targets] = 1
 
             # vec to take action of hessian on
-            V = torch.ones((1, int(data.numel() / N)))
-            hello = apx.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'y', V)
-            print(hello)
+            V = torch.ones((1, int(data.numel() / N))).cuda()
+            hvprod = apx.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'x', V)
+            print(hvprod)
 
         if run_config['tensorboard']:
             writer.add_scalar('Train/RunningLoss', loss_, global_step)
