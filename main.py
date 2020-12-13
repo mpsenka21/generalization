@@ -177,6 +177,21 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         'doublesum': lambda imgs, lbls, mdl: apx.doublesum_loss(imgs, lbls, data_config['mixup_alpha'], data_config['n_classes'], data_config['fixlam'], mdl, run_config['use_gpu'])
     }
 
+    ### take 2 for computing apx losses ###
+    # we're going to store all the images that we saw throughout this epoch
+    # and compute our loss on these at the end - this is effectively what is being optimised
+
+    # then recompute a mixed up dataset and compute the loss on that - this is our (likely close) approximation
+    # for double sum loss
+
+    # actually, for validity: do this batchwise too - makes your life easier too since you don't need to load up all images and labels
+    images_train = [] #: all images that were encountered in this epoch
+    labels_train = [] #: all labels that were encountered in this epoch
+    images_eval = [] # images that we're lining up for eval at the end of the epoch
+    labels_eval = []
+    images_eval2 = [] # second trial to check concentration
+    labels_eval2 = []
+
     start = time.time()
     for step, (data, targets) in enumerate(train_loader):
         global_step += 1
@@ -186,7 +201,11 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
         if data_config['use_mixup']:
             data, targets = mixup(data, targets, data_config['mixup_alpha'],
-                                  data_config['n_classes'], data_config['fixtrainlam'])
+                                  data_config['n_classes'], data_config['fixtrainlam'], True)
+
+            # assembling the data for our doublesum apx test here
+            images_train.append(copy.deepcopy(data))
+            labels_train.append(copy.deepcopy(targets))
 
         if run_config['tensorboard_train_images']:
             if step == 0:
@@ -238,12 +257,14 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         accuracy_meter.update(accuracy, num)
 
         # this is where the approximate losses are computed
-        if step < data_config['doublesum_batches']:
-            for k in apx_meters.keys():
-                l = apx_callbacks[k](images, labels, model)
-                apx_meters[k].update(l.item(), num)
-            loss_before_meter.update(loss_, num)
-            loss_after_meter.update(newloss_, num)
+        # loss_before_meter.update(loss_, num) # now we're not restricting batches
+        # loss_after_meter.update(loss_, num)
+        #if step < data_config['doublesum_batches']:
+            #for k in apx_meters.keys():
+                #l = apx_callbacks[k](images, labels, model)
+                #apx_meters[k].update(l.item(), num)
+            #loss_before_meter.update(loss_, num)
+            #loss_after_meter.update(newloss_, num)
 
         if data_config['compute_mixup_reg'] > 0:
             # batch sizee
@@ -285,15 +306,54 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                             accuracy_meter.avg,
                         ))
 
+    if data_config['use_mixup']:
+        # reiterating through trainloader to completely separate the construction of the eval sets from the train set
+        for step, (data, targets) in enumerate(train_loader):
+            old_data = copy.deepcopy(data)
+            old_targets = copy.deepcopy(targets)
+            data_eval, targets_eval = mixup(old_data, old_targets, data_config['mixup_alpha'],
+                                    data_config['n_classes'], data_config['fixlam'], True)
+
+            images_eval.append(copy.deepcopy(data_eval))
+            labels_eval.append(copy.deepcopy(targets_eval))
+
+        for step, (data, targets) in enumerate(train_loader):
+            old_data = copy.deepcopy(data)
+            old_targets = copy.deepcopy(targets)
+
+            data_eval2, targets_eval2 = mixup(old_data, old_targets, data_config['mixup_alpha'],
+                                    data_config['n_classes'], data_config['fixlam'], True)
+
+            images_eval2.append(copy.deepcopy(data_eval2))
+            labels_eval2.append(copy.deepcopy(targets_eval2))
+
+        # evaluating approximate losses
+        images_train = torch.cat(images_train)
+        labels_train = torch.cat(labels_train)
+        images_eval = torch.cat(images_eval)
+        labels_eval = torch.cat(labels_eval)
+        images_eval2 = torch.cat(images_eval2)
+        labels_eval2 = torch.cat(labels_eval2)
+
+        apxloss_train = apx.compute_loss(images_train, labels_train, model, run_config['use_gpu'])
+        apxloss_eval = apx.compute_loss(images_eval, labels_eval, model, run_config['use_gpu'])
+        apxloss_eval2 = apx.compute_loss(images_eval2, labels_eval2, model, run_config['use_gpu'])
+
+        logger.info('Train {:.4f}, Eval {:.4f}, Eval retrial {:.4f}'.format(
+            apxloss_train,
+            apxloss_eval,
+            apxloss_eval2
+        ))
+
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
-    logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}, Train before {:.2f}, Train after {:.2f}'.format(
-        apx_meters['vanilla'].avg,
-        apx_meters['mixup'].avg,
-        apx_meters['doublesum'].avg,
-        loss_before_meter.avg,
-        loss_after_meter.avg
-    ))
+    #logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}, Train before {:.2f}, Train after {:.2f}'.format(
+    #    apx_meters['vanilla'].avg,
+    #    apx_meters['mixup'].avg,
+    #    apx_meters['doublesum'].avg,
+    #    loss_before_meter.avg,
+    #    loss_after_meter.avg
+    #))
 
     if run_config['tensorboard']:
         writer.add_scalar('Train/Loss', loss_meter.avg, epoch)

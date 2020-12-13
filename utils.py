@@ -105,8 +105,8 @@ def onehot(label, n_classes):
     return torch.zeros(label.size(0), n_classes).scatter_(
         1, label.view(-1, 1), 1)
 
-
-def mixup(data, targets, alpha, n_classes, fixlam=-1):
+# indep: whether I would like alpha to be sampled independently throughout the batch
+def mixup(data, targets, alpha, n_classes, fixlam=-1, indep=False):
     indices = torch.randperm(data.size(0))
     data2 = data[indices]
     targets2 = targets[indices]
@@ -114,13 +114,23 @@ def mixup(data, targets, alpha, n_classes, fixlam=-1):
     targets = onehot(targets, n_classes)
     targets2 = onehot(targets2, n_classes)
 
-    lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
+    if indep and data.size(0) > 1:
+        # do some stuff
+        lam = torch.FloatTensor([np.random.beta(alpha, alpha, size=(data.size(0),) if indep else None)])
+    else:
+        lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
     if fixlam >= 0:
-        lam = fixlam
-    data = data * lam + data2 * (1 - lam)
-    targets = targets * lam + targets2 * (1 - lam)
+        lam.fill_(fixlam)
+
+    # print("Data", data.shape, "Targets", targets.shape, "Lam", lam.shape)
+    if indep and data.size(0) > 1:
+        lam = lam.reshape((data.shape[0], 1, 1, 1))
+    mixdata = data * lam + data2 * (1 - lam)
+    if indep and data.size(0) > 1:
+        lam = lam.reshape((targets.shape[0], 1))
+    mixtargets = targets * lam + targets2 * (1 - lam)
     # print("Mixup", data.shape, targets.shape)
-    return data, targets
+    return mixdata, mixtargets
 
 # mix all pairs together
 def full_mixup(data, targets, alpha, n_classes, fixlam=-1):

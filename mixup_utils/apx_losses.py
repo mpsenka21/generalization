@@ -105,19 +105,16 @@ def vanilla_loss(images, labels, model, use_gpu):
 # takes one-hot vectors as targets, which is important for mixup
 def mixup_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
     miximages, mixlabels = mixup(images, labels, alpha, n_classes, fixlam)
-    if use_gpu:
-        miximages = miximages.cuda()
-        mixlabels = mixlabels.cuda()
-
-    criterion = CrossEntropyLoss(size_average=True)
-    predictions = model(miximages)
-    return criterion(predictions, mixlabels)#, save_path='mixup.png')
+    return compute_loss(miximages, mixlabels, model, use_gpu)
 
 # double sum loss
 # mixup where every pair of images is combined
 # fixlam: whether setting lambda to 0.5 everywhere
 def doublesum_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
     miximages, mixlabels = full_mixup(images, labels, alpha, n_classes, fixlam)
+    return compute_loss(miximages, mixlabels, model, use_gpu)
+
+def compute_loss(miximages, mixlabels, model, use_gpu):
     doubleset = TensorDataset(miximages, mixlabels)
     doubleloader = torch.utils.data.DataLoader(doubleset, batch_size=8192, shuffle=False)
     
