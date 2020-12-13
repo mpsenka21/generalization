@@ -19,6 +19,7 @@ from utils import (mixup, full_mixup, CrossEntropyLoss)
 
 # needed for hvp (see below)
 
+# X and Y are (N x x/y_dim) matrices, batch size N
 def cross_entropy_manual(X, Y):
     # note X.shape[0] is the batch size
     X_softmax = X.exp() / X.exp().sum(axis=1).reshape((X.shape[0], 1))
