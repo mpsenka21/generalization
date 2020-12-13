@@ -132,7 +132,8 @@ def parse_args():
     parser.add_argument('--random_erasing_max_attempt', type=int, default=20)
     # mixup configuration
     parser.add_argument('--use_mixup', action='store_true', default=False)
-    parser.add_argument('--fixlam', type=float, default=-1)
+    parser.add_argument('--fixlam', type=float, default=-1) # lambda used in computing apx losses
+    parser.add_argument('--fixtrainlam', type=float, default=-1) # lambda used in training
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
     parser.add_argument('--compute_mixup_reg', type=int, default=0) # 1 to compute mixup regularization (normal), 0 to skip
@@ -159,6 +160,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
     model.train()
 
     loss_meter = AverageMeter()
+    loss_before_meter = AverageMeter() # re-evaluate error on images before the gradient update, first 20 batches
+    loss_after_meter = AverageMeter() # re-evaluate error on images after the gradient update, first 20 batches
     accuracy_meter = AverageMeter()
 
     # approximate losses and average meters are assembled here
@@ -183,7 +186,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
         if data_config['use_mixup']:
             data, targets = mixup(data, targets, data_config['mixup_alpha'],
-                                  data_config['n_classes'])
+                                  data_config['n_classes'], data_config['fixtrainlam'])
 
         if run_config['tensorboard_train_images']:
             if step == 0:
@@ -218,6 +221,12 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         _, preds = torch.max(outputs, dim=1)
 
         loss_ = loss.item()
+
+        # compute loss after the gradient update
+        outputs = model(data)
+        newloss = criterion(outputs, targets)
+        newloss_ = newloss.item()
+
         if data_config['use_mixup']:
             _, targets = targets.max(dim=1)
         correct_ = preds.eq(targets).sum().item()
@@ -233,6 +242,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             for k in apx_meters.keys():
                 l = apx_callbacks[k](images, labels, model)
                 apx_meters[k].update(l.item(), num)
+            loss_before_meter.update(loss_, num)
+            loss_after_meter.update(newloss_, num)
 
         if data_config['compute_mixup_reg'] > 0:
             # batch sizee
@@ -276,10 +287,12 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
-    logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}'.format(
+    logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}, Train before {:.2f}, Train after {:.2f}'.format(
         apx_meters['vanilla'].avg,
         apx_meters['mixup'].avg,
-        apx_meters['doublesum'].avg
+        apx_meters['doublesum'].avg,
+        loss_before_meter.avg,
+        loss_after_meter.avg
     ))
 
     if run_config['tensorboard']:

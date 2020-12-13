@@ -133,6 +133,7 @@ def _get_data_config(args):
         'use_mixup',
         'mixup_alpha',
         'fixlam',
+        'fixtrainlam',
         'doublesum_batches',
         'compute_mixup_reg'
     ]
