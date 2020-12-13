@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from utils import (mixup, full_mixup, CrossEntropyLoss)
+from utils import (mixup, full_mixup, CrossEntropyLoss, AverageMeter)
+import torch.utils.data
+from torch.utils.data import TensorDataset
+import copy
 
 # Module to compute all losses that approximate mixup training. These include:
 
@@ -115,10 +118,19 @@ def mixup_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
 # fixlam: whether setting lambda to 0.5 everywhere
 def doublesum_loss(images, labels, alpha, n_classes, fixlam, model, use_gpu):
     miximages, mixlabels = full_mixup(images, labels, alpha, n_classes, fixlam)
-    if use_gpu:
-        miximages = miximages.cuda()
-        mixlabels = mixlabels.cuda()
-        
+    doubleset = TensorDataset(miximages, mixlabels)
+    doubleloader = torch.utils.data.DataLoader(doubleset, batch_size=8192, shuffle=False)
+    
     criterion = CrossEntropyLoss(size_average=True)
-    predictions = model(miximages)
-    return criterion(predictions, mixlabels)#, save_path='doublesum.png')
+    meter = AverageMeter()
+    for imgs, lbls in doubleloader:
+        if use_gpu:
+            imgs = imgs.cuda()
+            lbls = lbls.cuda()
+
+        with torch.no_grad(): # this line is key to preventing CUDA out of memory error
+            predictions = model(imgs)
+
+        meter.update(criterion(predictions, lbls), imgs.shape[0])
+
+    return meter.avg
