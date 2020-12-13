@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import copy
+import matplotlib.pyplot as plt
 
 
 def str2bool(s):
@@ -138,22 +139,29 @@ def full_mixup(data, targets, alpha, n_classes, fixlam=False):
         lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
         if fixlam:
             lam = 0.5
-        data = data * lam + data2 * (1 - lam)
+        mixdata = data * lam + data2 * (1 - lam)
         mixtargets = mixtargets * lam + mixtargets2 * (1 - lam)
 
         if i == 0:
-            all_data = copy.deepcopy(data)
+            all_data = copy.deepcopy(mixdata)
             all_targets = copy.deepcopy(mixtargets)
         else:
-            all_data = torch.cat([all_data, data])
+            all_data = torch.cat([all_data, mixdata])
             all_targets = torch.cat([all_targets, mixtargets])
 
     # print("Doublesum", all_data.shape, all_targets.shape)
+    if 'images.pt' not in os.listdir():
+        torch.save(all_data, 'images.pt')
+    if 'labels.pt' not in os.listdir():
+        torch.save(all_targets, 'labels.pt')
     return all_data, all_targets
 
 
-def cross_entropy_loss(input, target, size_average=True):
+def cross_entropy_loss(input, target, size_average=True, save_path=None):
     input = F.log_softmax(input, dim=1)
+    if save_path and save_path not in os.listdir():
+        plt.hist((-input * target).detach().cpu().numpy())
+        plt.savefig(save_path)
     loss = -torch.sum(input * target)
     if size_average:
         return loss / input.size(0)
@@ -165,5 +173,5 @@ class CrossEntropyLoss(object):
     def __init__(self, size_average=True):
         self.size_average = size_average
 
-    def __call__(self, input, target):
-        return cross_entropy_loss(input, target, self.size_average)
+    def __call__(self, input, target, save_path=None):
+        return cross_entropy_loss(input, target, self.size_average, save_path=save_path)
