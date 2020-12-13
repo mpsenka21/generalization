@@ -106,7 +106,7 @@ def onehot(label, n_classes):
         1, label.view(-1, 1), 1)
 
 
-def mixup(data, targets, alpha, n_classes, fixlam=False):
+def mixup(data, targets, alpha, n_classes, fixlam=-1):
     indices = torch.randperm(data.size(0))
     data2 = data[indices]
     targets2 = targets[indices]
@@ -115,15 +115,15 @@ def mixup(data, targets, alpha, n_classes, fixlam=False):
     targets2 = onehot(targets2, n_classes)
 
     lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
-    if fixlam:
-        lam = 0.5
+    if fixlam >= 0:
+        lam = fixlam
     data = data * lam + data2 * (1 - lam)
     targets = targets * lam + targets2 * (1 - lam)
     # print("Mixup", data.shape, targets.shape)
     return data, targets
 
 # mix all pairs together
-def full_mixup(data, targets, alpha, n_classes, fixlam=False):
+def full_mixup(data, targets, alpha, n_classes, fixlam=-1):
     # iterating through all choices for the first image
     # getting mixed up
     for i in range(data.size(0)):
@@ -137,8 +137,8 @@ def full_mixup(data, targets, alpha, n_classes, fixlam=False):
         mixtargets2 = onehot(targets2, n_classes)
 
         lam = torch.FloatTensor([np.random.beta(alpha, alpha)])
-        if fixlam:
-            lam = 0.5
+        if fixlam >= 0:
+            lam = fixlam
         mixdata = data * lam + data2 * (1 - lam)
         mixtargets = mixtargets * lam + mixtargets2 * (1 - lam)
 

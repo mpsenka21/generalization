@@ -132,7 +132,7 @@ def parse_args():
     parser.add_argument('--random_erasing_max_attempt', type=int, default=20)
     # mixup configuration
     parser.add_argument('--use_mixup', action='store_true', default=False)
-    parser.add_argument('--fixlam', action='store_true', default=False)
+    parser.add_argument('--fixlam', type=float, default=-1)
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
     parser.add_argument('--compute_mixup_reg', type=int, default=0) # 1 to compute mixup regularization (normal), 0 to skip
