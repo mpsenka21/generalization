@@ -220,13 +220,12 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     
     # we assume uniform distribution
     theta_bar = 0.75*torch.ones((1)).cuda()
-    print(theta_bar.device, mu_img_flat.device, images_flat.device)
     # matrix form for x_theta over whole batch
     Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
     # same for y_tilde
     Yt = (1 - theta_bar)*mu_y + theta_bar*Y
 
-    loss = cross_entropy_manual(Xt, Yt)
+    loss = cross_entropy_manual(model(Xt), Yt)
 
     # COMPUTE delta delta^T term (term 2)
 
