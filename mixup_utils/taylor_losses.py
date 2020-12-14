@@ -11,6 +11,31 @@ from torch.autograd import Variable
 # (equation refs are taken from "On Mixup Regularization"): 
 # https://arxiv.org/pdf/2006.06049.pdf
 
+### some modules for computing the necessary covariances, approximately with SVD as needed ###
+
+# takes images and one-hot target vectors as input and computes the means and covariances of the data that are necessary to compute Taylor-approximate loss
+def compute_moments(data, targets):
+    assert(data.shape[0] == targets.shape[0])
+    num = data.shape[0]
+    x = data.reshape((num, -1))
+    y = targets.reshape((num, -1))
+    
+    xbar = x.mean(axis=0)
+    xcent = x - xbar
+    ybar = y.mean(axis=0)
+    ycent = y - ybar
+    
+    xxcov = 1/num * torch.matmul(torch.transpose(xcent, 0, 1), xcent)
+    xycov = 1/num * torch.matmul(torch.transpose(xcent, 0, 1), ycent)
+    
+    return xbar, ybar, xxcov, xycov
+
+# takes a covariance matrix X as input
+# and returns U, S, V such that X ~ U * diag(S) * V^T
+def decomposition(cov, n_components):
+    U, S, V = torch.svd(cov)
+    return U[:, :n_components], S[:n_components], V[:, :n_components]
+
 # manual cross_entropy for single model output x (not necessarily distribution)
 # and one-hot encoded label y, each a vector-Pytorch tensor
 
