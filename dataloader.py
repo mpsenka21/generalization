@@ -253,7 +253,7 @@ def get_loader(config, return_full=False):
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=use_gpu,
+        pin_memory=False if return_full else use_gpu,
         drop_last=True,
     )
     test_loader = torch.utils.data.DataLoader(
@@ -261,7 +261,7 @@ def get_loader(config, return_full=False):
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=False,
-        pin_memory=use_gpu,
+        pin_memory=False if return_full else use_gpu,
         drop_last=False,
     )
     return train_loader, test_loader
