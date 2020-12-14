@@ -250,7 +250,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     var_half_mixup = 0.5**2 / 12
     gamma_squared = var_half_mixup + (1 - theta_bar)**2
-    ddterm = 0.5*(data_dependent + gamma_squared * data_independent)
+    ddterm = 0.5*(var_half_mixup*data_dependent + gamma_squared * data_independent)
 
     # COMPUTE epsilon delta^T "cross-term" (term 3)
 
@@ -268,6 +268,6 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
         data_independent_cross += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
 
-    edterm = data_dependent_cross + gamma_squared * data_independent_cross
+    edterm = var_half_mixup*data_dependent_cross + gamma_squared * data_independent_cross
 
     return loss, ddterm, edterm
