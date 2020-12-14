@@ -387,7 +387,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             delta2_meter.update(delta2.item(), num)
             deltaeps_meter.update(deltaeps.item(), num)
             delta2eps_meter.update(delta2eps.item(), num)
-            print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item())
+            print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item(), base.item() + delta2.item() + deltaeps.item() + delta2eps.item())
 
         logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Delta2eps {:.4f}, Total {:.4f}'.format(
             base_meter.avg,
