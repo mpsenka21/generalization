@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from torch.autograd import Variable
 
 # Module to compute and evaluate the Taylor approximate loss in the paper on larger-scale tasks
@@ -104,7 +105,7 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
 
     return hvprod
 
-# computes quadratics of the form \sum w_i H v_i over a batch, where H is a Hessia
+# computes quadratics of the form \sum w_i H(x_i, y_i) v_i over a batch, where H is a Hessian
 # w.r.t. loss
 
 # suppose the batch size is N
@@ -153,7 +154,7 @@ def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
 
     return (1/N)*wHv
 
-# Computes a quadratic of the form w^T H v, where H is a Hessian w.r.t. loss
+# Computes a quadratic of the form w^T \sum_i H(x_i, y_i) v, where H is a Hessian w.r.t. loss
 # v, w are vectors that come from an SVD. 
 #
 # v has the same dimension as what x1 corresponds to (x_dim if 'x', num_classes if 'y')
@@ -192,6 +193,76 @@ def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
 
     return (1/N)*wHv
 
-# dummy function
+
+# theta_bar is 3/4
+# images and labels are not scaled down/flattened
+
+# returns regularization (non-loss) terms
 def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy):
-    return 0, 0, 0
+    # extract batch size
+    N = images.shape[0]
+    # extract number of total pixels for images
+    img_size = int(images.numel() / N)
+    # extract original batch shape
+    batch_shape = images.shape
+
+    # flatten input images
+    images_flat = images.reshape((N, img_size))
+    mu_img_flat = mu_img.reshape((1, img_size))
+
+    num_classes = labels.max() + 1
+    # Y is a stack of rows, where each row is the one_hot version
+    # of the correct label
+    Y = torch.zeros((N, num_classes)).cuda()
+    Y[np.arange(N), labels] = 1
+
+    # COMPUTE raw tilde loss (term 1)
+    
+    # we assume uniform distribution
+    theta_bar = 0.75
+    # matrix form for x_theta over whole batch
+    Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
+    # same for y_tilde
+    Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+
+    loss = cross_entropy_manual(Xt, Yt)
+
+    # COMPUTE delta delta^T term (term 2)
+
+    # first compute the data-dependent part.
+    V = (images_flat - mu_img).detach().clone()
+    # compute the data dependent component of inner product
+    data_dependent = hess_quadratic(
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', V, V)
+    
+    # extract number of singular values extracted from global covariance matrix
+    num_components = Sxx.numel()
+
+    data_independent = 0.0
+    for i in range(num_components):
+        data_independent += hess_svd(
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
+
+    var_half_mixup = 0.5**2 / 12
+    gamma_squared = var_half_mixup + (1 - theta_bar)**2
+    ddterm = data_dependent + gamma_squared * data_independent
+
+    # COMPUTE epsilon delta^T "cross-term" (term 3)
+
+    # first compute the data-dependent part.
+    W = (Y - mu_y).detach().clone()
+    # compute the data dependent component of inner product
+    data_dependent_cross = hess_quadratic(
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', V, W)
+    
+    # extract number of singular values extracted from global covariance matrix
+    num_components = Sxx.numel()
+
+    data_independent = 0.0
+    for i in range(num_components):
+        data_independent += hess_svd(
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
+
+    edterm = data_dependent + gamma_squared * data_independent
+
+    return loss, ddterm, edterm
