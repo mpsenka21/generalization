@@ -290,7 +290,10 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             # vec to take action of hessian on
             V = (data_flat - data_flat.sum(axis=0)).detach().clone()
             W = (y_vec - y_vec.sum(axis=0)).detach().clone()
-            hvprod = taylor.hess_quadratic(lambda x, y : taylor.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'y', V, W)
+            X = 2*torch.ones((2, 2)).cuda()
+            Y = 2*torch.ones((2, 2)).cuda()
+            V = torch.ones((2,2)).cuda()
+            hvprod = taylor.hess_quadratic(lambda x, y : torch.sum(x.pow(2) + y.pow(2)), lambda x: x, X.shape, X, Y, 'x', 'x', V, V)
             print(hvprod)
 
         if run_config['tensorboard']:
