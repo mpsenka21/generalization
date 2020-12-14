@@ -325,6 +325,8 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     edterm = var_half_mixup*data_dependent_cross + gamma_squared * data_independent_cross
 
+    # update num components
+    num_components = T_S[0,:].numel()
     # COMPUTE epsilon delta delta "3-term" (term 4, new)
     hess_quad_innerprod = torch.zeros((1)).cuda()
     # sum over classes
