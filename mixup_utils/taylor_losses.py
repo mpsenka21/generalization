@@ -79,7 +79,21 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
 
     return hvprod
 
-# computes quadratics of the form \sum w_i H(x/y_i, x/y_i) v_i over a batch
+# computes quadratics of the form \sum w_i H v_i over a batch, where H is a Hessia
+# w.r.t. loss
+
+# suppose the batch size is N
+
+# X is a (N by x_dim) matrix, where x_dim is the dimensionality of the data
+# Y is a (N by num_classes) matrix
+# x1 is a string: 'x' to take the 1st derivative w.r.t. X, 'y' for 1st derivative
+#      w.r.t. Y
+# x2 is a string: ""           "" 2nd derivative w.r.t. X, 'y' for 2st derivative
+#      w.r.t. Y
+# V has the same shape as the variable corresponding to x1
+# W has the same shape as the variable corresponding to x2
+
+# see comments over hvp for further details
 def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
     # setting up pytorch stuff to prepare for backprop
     Vvar = Variable(V, requires_grad=True)
@@ -111,5 +125,44 @@ def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
     grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
     # sum over rows (different elements in batch)
     wHv = torch.sum(W * grad2)
+
+    return (1/N)*wHv
+
+# Computes a quadratic of the form w^T H v, where H is a Hessian w.r.t. loss
+# v, w are vectors that come from an SVD. 
+#
+# v has the same dimension as what x1 corresponds to (x_dim if 'x', num_classes if 'y')
+# w has the same dimension as what x2 corresponds to
+def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
+    # setting up pytorch stuff to prepare for backprop
+    vvar = Variable(v, requires_grad=True)
+    wvar = Variable(w, requires_grad=True)
+
+    # extract batch size
+    N = X.shape[0]
+    
+    Xvar = Variable(X, requires_grad=True)
+    Yvar = Variable(Y, requires_grad=True)
+    model_eval = model(Xvar.reshape(data_shape))
+    
+    # choose which variable x1var corresponds to
+    x1var = Xvar if x1=='x' else Yvar
+    x2var = Xvar if x2=='x' else Yvar
+    
+    score = loss(model_eval, Yvar)
+
+    # gradient w.r.t. entire batch 
+    grad, = torch.autograd.grad(score, x1var, create_graph=True)
+    # sum over batch elements (avg. at end)
+    total = torch.sum(grad.sum(axis=0) * vvar)
+    
+    if Xvar.grad:
+        Xvar.grad.data.zero_()
+    if Yvar.grad:
+        Yvar.grad.data.zero_()
+    
+    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # sum over rows (different elements in batch)
+    wHv = torch.sum(grad2.sum(axis=0) * wvar)
 
     return (1/N)*wHv
