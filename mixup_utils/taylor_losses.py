@@ -187,7 +187,8 @@ def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
     if Yvar.grad:
         Yvar.grad.data.zero_()
     
-    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # NOTE: THIS WILL NOT ALLOW FURTHER BACKPROP, BRING create_graph=True BACK TO ALLOW THIS
+    grad2, = torch.autograd.grad(total, x2var, create_graph=False, allow_unused=True)
     # sum over rows (different elements in batch)
     wHv = torch.sum(grad2.sum(axis=0) * wvar)
 
@@ -256,7 +257,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
         lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', V, W)
     
     # extract number of singular values extracted from global covariance matrix
-    num_components = Sxx.numel()
+    num_components = Sxy.numel()
 
     data_independent_cross = torch.zeros((1)).cuda()
     for i in range(num_components):

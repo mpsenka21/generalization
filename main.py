@@ -382,6 +382,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             base_meter.update(base.item(), num)
             delta2_meter.update(delta2.item(), num)
             deltaeps_meter.update(deltaeps.item(), num)
+            print("TEMP", base.item(), delta2.item(), deltaeps.item())
 
         logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Total {:.4f}'.format(
             base_meter.avg,
@@ -524,7 +525,7 @@ def main():
     #torch.save(xxcov, 'xxcov.pt')
     #torch.save(xycov, 'xycov.pt')
     Uxx, Sxx, Vxx = taylor.decomposition(xxcov, config['data_config']['cov_components'])
-    Uxy, Sxy, Vxy = taylor.decomposition(xycov, config['data_config']['cov_components'])
+    Uxy, Sxy, Vxy = taylor.decomposition(xycov, 10)
     #torch.save(Uxx, 'Uxx.pt')
     #torch.save(Sxx, 'Sxx.pt')
     #torch.save(Vxx, 'Vxx.pt')
