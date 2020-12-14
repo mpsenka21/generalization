@@ -224,13 +224,14 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
     # same for y_tilde
     Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+    #print(Xt.shape, Yt.shape)
 
-    loss = cross_entropy_manual(model(Xt), Yt)
+    loss = cross_entropy_manual(model(Xt.reshape(images.shape)), Yt)
 
     # COMPUTE delta delta^T term (term 2)
 
     # first compute the data-dependent part.
-    V = (images_flat - mu_img).detach().clone()
+    V = (images_flat - mu_img_flat).detach().clone()
     # compute the data dependent component of inner product
     data_dependent = hess_quadratic(
         lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', V, V)
