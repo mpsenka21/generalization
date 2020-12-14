@@ -225,7 +225,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # same for y_tilde
     Yt = (1 - theta_bar)*mu_y + theta_bar*Y
 
-    loss = cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
+    loss = (1/N)*cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
 
     # COMPUTE delta delta^T term (term 2)
 
