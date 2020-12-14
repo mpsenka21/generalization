@@ -363,7 +363,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
         for step, (data, targets) in enumerate(train_loader):
             base, delta2, deltaeps = taylor.taylor_loss(
-                data, targets, model,
+                data.cuda(), targets.cuda(), model,
                 moment_dict['xbar'],
                 moment_dict['ybar'],
                 moment_dict['Uxx'],
