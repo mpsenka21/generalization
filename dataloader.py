@@ -231,7 +231,7 @@ class FashionMNIST(Dataset):
 
 # return_full: whether to return a loader that will give you the whole dataset
 def get_loader(config, return_full=False):
-    batch_size = 60000 if return_full else config['batch_size']
+    batch_size = 200000 if return_full else config['batch_size']
     num_workers = config['num_workers']
     use_gpu = config['use_gpu']
     num_per_class = config['num_per_class']
@@ -253,15 +253,15 @@ def get_loader(config, return_full=False):
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=False if return_full else use_gpu,
-        drop_last=True,
+        pin_memory=use_gpu, #False if return_full else use_gpu,
+        drop_last=False, # True
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=False,
-        pin_memory=False if return_full else use_gpu,
+        pin_memory=use_gpu, #False if return_full else use_gpu,
         drop_last=False,
     )
     return train_loader, test_loader
