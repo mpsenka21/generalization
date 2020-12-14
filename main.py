@@ -27,6 +27,7 @@ from utils import (str2bool, load_model, save_checkpoint, create_optimizer,
                    AverageMeter, mixup, CrossEntropyLoss)
 from argparser import get_config
 import mixup_utils.apx_losses as apx
+import mixup_utils.taylor_losses as taylor
 
 torch.backends.cudnn.benchmark = True
 
@@ -286,7 +287,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
             # vec to take action of hessian on
             V = torch.ones((1, int(data.numel() / N))).cuda()
-            hvprod = apx.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'x', V)
+            hvprod = taylor.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'x', V)
             print(hvprod)
 
         if run_config['tensorboard']:
