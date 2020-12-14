@@ -28,20 +28,20 @@
     "lr_decay": 0.1
   },
   "data_config": {
-    "dataset": "MNIST",
+    "dataset": "MiniMNIST",
     "num_per_class": 128,
     "n_classes": 10,
     "num_workers": 7,
     "batch_size": 128,
     "use_cutout": false,
     "use_random_erasing": false,
-    "use_mixup": false,
+    "use_mixup": true,
     "mixup_alpha": 1,
     "fixlam": -1,
     "fixtrainlam": -1,
-    "doublesum_batches": 0,
-    "compute_mixup_reg": 1,
-    "cov_components": -1,
+    "doublesum_batches": 20,
+    "compute_mixup_reg": 0,
+    "cov_components": 100,
     "use_gpu": true
   },
   "run_config": {

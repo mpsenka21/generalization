@@ -226,6 +226,9 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # same for y_tilde
     Yt = (1 - theta_bar)*mu_y + theta_bar*Y
 
+    torch.save(Xt, 'Xt.pt')
+    torch.save(Yt, 'Yt.pt')
+
     loss = (1/N)*cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
 
     # COMPUTE delta delta^T term (term 2)
@@ -234,7 +237,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     V = (images_flat - mu_img_flat).detach().clone()
     # compute the data dependent component of inner product
     data_dependent = hess_quadratic(
-        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', V, V)
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', V, V)
     
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
@@ -242,7 +245,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     data_independent = torch.zeros((1)).cuda()
     for i in range(num_components):
         data_independent += hess_svd(
-            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
 
     var_half_mixup = 0.5**2 / 12
     gamma_squared = var_half_mixup + (1 - theta_bar)**2
@@ -254,7 +257,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     W = (Y - mu_y).detach().clone()
     # compute the data dependent component of inner product
     data_dependent_cross = hess_quadratic(
-        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', V, W)
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', V, W)
     
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxy.numel()
@@ -262,7 +265,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     data_independent_cross = torch.zeros((1)).cuda()
     for i in range(num_components):
         data_independent += hess_svd(
-            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
 
     edterm = data_dependent_cross + gamma_squared * data_independent_cross
 
