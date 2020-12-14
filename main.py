@@ -376,9 +376,9 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
             num = data.shape[0]
 
-            base_meter.update(base, num)
-            delta2_meter.update(delta2, num)
-            deltaeps_meter.update(deltaeps, num)
+            base_meter.update(base.item(), num)
+            delta2_meter.update(delta2.item(), num)
+            deltaeps_meter.update(deltaeps.item(), num)
 
         logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Total {:.4f}'.format(
             base_meter.avg,
@@ -528,16 +528,28 @@ def main():
     #torch.save(Uxy, 'Uxy.pt')
     #torch.save(Sxy, 'Sxy.pt')
     #torch.save(Vxy, 'Vxy.pt')
-    moment_dict = {
-        'Uxx': Uxx,
-        'Uxy': Uxy,
-        'Sxx': Sxx,
-        'Sxy': Sxy,
-        'Vxx': Vxx,
-        'Vxy': Vxy,
-        'xbar': xbar.reshape(full_images.shape[1:]),
-        'ybar': ybar
-    }
+    if run_config['use_gpu']:
+        moment_dict = {
+            'Uxx': Uxx.cuda(),
+            'Uxy': Uxy.cuda(),
+            'Sxx': Sxx.cuda(),
+            'Sxy': Sxy.cuda(),
+            'Vxx': Vxx.cuda(),
+            'Vxy': Vxy.cuda(),
+            'xbar': xbar.reshape(full_images.shape[1:]).cuda(),
+            'ybar': ybar.cuda()
+        }
+    else:
+        moment_dict = {
+            'Uxx': Uxx,
+            'Uxy': Uxy,
+            'Sxx': Sxx,
+            'Sxy': Sxy,
+            'Vxx': Vxx,
+            'Vxy': Vxy,
+            'xbar': xbar.reshape(full_images.shape[1:]),
+            'ybar': ybar
+        }
 
     # set up dataframe for recording results:
     dfcols = []
