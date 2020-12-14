@@ -104,7 +104,7 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
 
     return hvprod
 
-# computes quadratics of the form \sum w_i H v_i over a batch, where H is a Hessia
+# computes quadratics of the form \sum w_i H(x_i, y_i) v_i over a batch, where H is a Hessian
 # w.r.t. loss
 
 # suppose the batch size is N
@@ -153,7 +153,7 @@ def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
 
     return (1/N)*wHv
 
-# Computes a quadratic of the form w^T H v, where H is a Hessian w.r.t. loss
+# Computes a quadratic of the form w^T \sum_i H(x_i, y_i) v, where H is a Hessian w.r.t. loss
 # v, w are vectors that come from an SVD. 
 #
 # v has the same dimension as what x1 corresponds to (x_dim if 'x', num_classes if 'y')
