@@ -245,7 +245,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     var_half_mixup = 0.5**2 / 12
     gamma_squared = var_half_mixup + (1 - theta_bar)**2
-    ddterm = data_dependent + gamma_squared * data_independent
+    ddterm = 0.5*(data_dependent + gamma_squared * data_independent)
 
     # COMPUTE epsilon delta^T "cross-term" (term 3)
 
