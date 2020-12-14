@@ -61,9 +61,14 @@ def cross_entropy_manual(X, Y):
 
 # takes flattened data matrix X (shape (N by x_dim)) and one-hot targets
 # matrix Y, clones them (num_batches) times vertically.
-def make_megabatch(X, Y, num_batches):
+def make_megabatch(X, Y, U, S, V num_batches):
     X_mega = X.repeat(num_batches, 1).detach().clone()
     Y_mega = Y.repeat(num_batches, 1).detach().clone()
+    U_mega = torch.repeat_interleave(U, repeats=num_batches, dim=1)
+    S_mega = torch.repeat_interleave(S, repeats=num_batches, dim=1)
+    V_mega = torch.repeat_interleave(V, repeats=num_batches, dim=1)
+
+    return X_mega, Y_mega, U_mega, S_mega, V_mega
 
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
