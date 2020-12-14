@@ -9,6 +9,7 @@ import argparse
 import numpy as np
 import random
 import copy
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -138,7 +139,7 @@ def parse_args():
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
     parser.add_argument('--compute_mixup_reg', type=int, default=0) # 1 to compute mixup regularization (normal), 0 to skip
-    parser.add_argument('--cov_components', type=int, default=10) # number of components to take when computing approximate covariance
+    parser.add_argument('--cov_components', type=int, default=-1) # number of components to take when computing approximate covariance
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -150,7 +151,7 @@ def parse_args():
 
 
 def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
-          writer):
+          writer, moment_dict):
     global global_step
 
     run_config = config['run_config']
@@ -309,6 +310,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                             accuracy_meter.avg,
                         ))
 
+    ret = [loss_meter.avg, accuracy_meter.avg]
+
     if data_config['use_mixup']:
         # reiterating through trainloader to completely separate the construction of the eval sets from the train set
         for step, (data, targets) in enumerate(train_loader):
@@ -348,6 +351,47 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             apxloss_eval2
         ))
 
+        ret.append(apxloss_train.item())
+        ret.append(apxloss_eval.item())
+        ret.append(apxloss_eval2.item())
+
+    # compute Taylor approximate loss
+    if data_config['cov_components'] > 0:
+        base_meter = AverageMeter()
+        delta2_meter = AverageMeter()
+        deltaeps_meter = AverageMeter()
+
+        for step, (data, targets) in enumerate(train_loader):
+            base, delta2, deltaeps = taylor.taylor_loss(
+                data, targets, model,
+                moment_dict['xbar'],
+                moment_dict['ybar'],
+                moment_dict['Uxx'],
+                moment_dict['Sxx'],
+                moment_dict['Vxx'],
+                moment_dict['Uxy'],
+                moment_dict['Sxy'],
+                moment_dict['Vxy'],
+            )
+
+            num = data.shape[0]
+
+            base_meter.update(base, num)
+            delta2_meter.update(delta2, num)
+            deltaeps_meter.update(deltaeps, num)
+
+        logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Total {:.4f}'.format(
+            base_meter.avg,
+            delta2_meter.avg,
+            deltaeps_meter.avg,
+            base_meter.avg + delta2_meter.avg + deltaeps_meter.avg
+        ))
+
+        ret.append(base_meter.avg)
+        ret.append(delta2_meter.avg)
+        ret.append(deltaeps_meter.avg)
+        ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg)
+
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
     #logger.info('Vanilla {:.2f}, Mixup {:.2f}, Double sum {:.2f}, Train before {:.2f}, Train after {:.2f}'.format(
@@ -363,6 +407,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         writer.add_scalar('Train/Accuracy', accuracy_meter.avg, epoch)
         writer.add_scalar('Train/Time', elapsed, epoch)
 
+    return ret
 
 def test(epoch, model, criterion, test_loader, run_config, writer):
     logger.info('Test {}'.format(epoch))
@@ -415,7 +460,7 @@ def test(epoch, model, criterion, test_loader, run_config, writer):
         for name, param in model.named_parameters():
             writer.add_histogram(name, param, global_step)
 
-    return accuracy
+    return loss_meter.avg, accuracy
 
 
 def update_state(state, epoch, accuracy, model, optimizer):
@@ -483,6 +528,34 @@ def main():
     #torch.save(Uxy, 'Uxy.pt')
     #torch.save(Sxy, 'Sxy.pt')
     #torch.save(Vxy, 'Vxy.pt')
+    moment_dict = {
+        'Uxx': Uxx,
+        'Uxy': Uxy,
+        'Sxx': Sxx,
+        'Sxy': Sxy,
+        'Vxx': Vxx,
+        'Vxy': Vxy,
+        'xbar': xbar.reshape(full_images.shape[1:]),
+        'ybar': ybar
+    }
+
+    # set up dataframe for recording results:
+    dfcols = []
+    dfcols.append('train_loss')
+    dfcols.append('train_acc')
+    if config['data_config']['use_mixup']:
+        dfcols.append('doublesum_train')
+        dfcols.append('doublesum_eval')
+        dfcols.append('doublesum_eval2')
+    if config['data_config']['cov_components'] > 0:
+        dfcols.append('taylor_base')
+        dfcols.append('taylor_delta2')
+        dfcols.append('taylor_deltaeps')
+        dfcols.append('taylor_total')
+    dfcols.append('test_loss')
+    dfcols.append('test_acc')
+
+    resultsdf = pd.DataFrame(columns=dfcols)
 
     # load model
     logger.info('Loading model...')
@@ -519,12 +592,18 @@ def main():
     }
     for epoch in range(1, optim_config['epochs'] + 1):
         # train
-        train(epoch, model, optimizer, scheduler, train_criterion,
-              train_loader, config, writer)
+        dfrow = train(epoch, model, optimizer, scheduler, train_criterion,
+              train_loader, config, writer, moment_dict)
 
         # test
-        accuracy = test(epoch, model, test_criterion, test_loader, run_config,
+        test_loss, accuracy = test(epoch, model, test_criterion, test_loader, run_config,
                         writer)
+
+        dfrow.append(test_loss)
+        dfrow.append(accuracy)
+
+        resultsdf.loc[resultsdf.shape[0]] = list(dfrow)
+        resultsdf.to_csv(os.path.join(outdir, 'results.csv'))
 
         # update state dictionary
         state = update_state(state, epoch, accuracy, model, optimizer)

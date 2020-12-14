@@ -191,3 +191,7 @@ def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
     wHv = torch.sum(grad2.sum(axis=0) * wvar)
 
     return (1/N)*wHv
+
+# dummy function
+def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy):
+    return 0, 0, 0
