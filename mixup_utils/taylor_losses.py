@@ -59,6 +59,12 @@ def cross_entropy_manual(X, Y):
     # TODO: check pytorch uses base 2
     return -(Y * torch.log(X_softmax)).sum()
 
+# takes flattened data matrix X (shape (N by x_dim)) and one-hot targets
+# matrix Y, clones them (num_batches) times vertically.
+def make_megabatch(X, Y, num_batches):
+    X_mega = X.repeat(num_batches, 1).detach().clone()
+    Y_mega = Y.repeat(num_batches, 1).detach().clone()
+
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
 # compute matrix-vector products of the form:
