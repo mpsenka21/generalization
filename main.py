@@ -24,7 +24,7 @@ except Exception:
 
 from dataloader import get_loader
 from utils import (str2bool, load_model, save_checkpoint, create_optimizer,
-                   AverageMeter, mixup, CrossEntropyLoss)
+                   AverageMeter, mixup, CrossEntropyLoss, onehot)
 from argparser import get_config
 import mixup_utils.apx_losses as apx
 import mixup_utils.taylor_losses as taylor
@@ -138,6 +138,7 @@ def parse_args():
     parser.add_argument('--mixup_alpha', type=float, default=1)
     parser.add_argument('--doublesum_batches', type=int, default=20) # how many batches should I use when computing double sum loss?
     parser.add_argument('--compute_mixup_reg', type=int, default=0) # 1 to compute mixup regularization (normal), 0 to skip
+    parser.add_argument('--cov_components', type=int, default=10) # number of components to take when computing approximate covariance
 
     args = parser.parse_args()
     if not is_tensorboard_available:
@@ -463,6 +464,25 @@ def main():
 
     # load data loaders
     train_loader, test_loader = get_loader(config['data_config'])
+
+    # compute covariances
+    full_train_loader, _ = get_loader(config['data_config'], return_full=True)
+    for batch in full_train_loader:
+        full_images, full_labels = batch
+    full_targets = onehot(full_labels, config['data_config']['n_classes'])
+    xbar, ybar, xxcov, xycov = taylor.compute_moments(full_images, full_targets)
+    #torch.save(xbar, 'xbar.pt')
+    #torch.save(ybar, 'ybar.pt')
+    #torch.save(xxcov, 'xxcov.pt')
+    #torch.save(xycov, 'xycov.pt')
+    Uxx, Sxx, Vxx = taylor.decomposition(xxcov, config['data_config']['cov_components'])
+    Uxy, Sxy, Vxy = taylor.decomposition(xycov, config['data_config']['cov_components'])
+    #torch.save(Uxx, 'Uxx.pt')
+    #torch.save(Sxx, 'Sxx.pt')
+    #torch.save(Vxx, 'Vxx.pt')
+    #torch.save(Uxy, 'Uxy.pt')
+    #torch.save(Sxy, 'Sxy.pt')
+    #torch.save(Vxy, 'Vxy.pt')
 
     # load model
     logger.info('Loading model...')

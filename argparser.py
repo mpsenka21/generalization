@@ -135,7 +135,8 @@ def _get_data_config(args):
         'fixlam',
         'fixtrainlam',
         'doublesum_batches',
-        'compute_mixup_reg'
+        'compute_mixup_reg',
+        'cov_components'
     ]
     json_keys = ['random_erasing_area_ratio_range']
     config = _args2config(args, keys, json_keys)

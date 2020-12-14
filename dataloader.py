@@ -229,9 +229,9 @@ class FashionMNIST(Dataset):
     def _get_default_test_transform(self):
         return self._get_default_transform()
 
-
-def get_loader(config):
-    batch_size = config['batch_size']
+# return_full: whether to return a loader that will give you the whole dataset
+def get_loader(config, return_full=False):
+    batch_size = 60000 if return_full else config['batch_size']
     num_workers = config['num_workers']
     use_gpu = config['use_gpu']
     num_per_class = config['num_per_class']
