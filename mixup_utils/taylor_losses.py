@@ -263,6 +263,6 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
         data_independent += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
 
-    edterm = data_dependen_cross + gamma_squared * data_independent_cross
+    edterm = data_dependent_cross + gamma_squared * data_independent_cross
 
     return loss, ddterm, edterm
