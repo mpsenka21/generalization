@@ -41,7 +41,7 @@
     "fixtrainlam": -1,
     "doublesum_batches": 20,
     "compute_mixup_reg": 0,
-    "cov_components": 100,
+    "cov_components": 50,
     "use_gpu": true
   },
   "run_config": {

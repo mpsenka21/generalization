@@ -18,8 +18,11 @@ from torch.autograd import Variable
 def compute_moments(data, targets):
     assert(data.shape[0] == targets.shape[0])
     num = data.shape[0]
+    num_classes = targets.shape[1]
     x = data.reshape((num, -1))
     y = targets.reshape((num, -1))
+
+    x_dim = x.shape[1]
     
     xbar = x.mean(axis=0)
     xcent = x - xbar
@@ -28,8 +31,14 @@ def compute_moments(data, targets):
     
     xxcov = 1/num * torch.matmul(torch.transpose(xcent, 0, 1), xcent)
     xycov = 1/num * torch.matmul(torch.transpose(xcent, 0, 1), ycent)
+
+    T = torch.zeros((num_classes, x_dim, x_dim)).cuda()
+    for i in range(num_classes):
+        # xcent is (num by x_dim)
+        # T[i,:,:] = E_j(y'_j(c) x'_j x'_j^T)
+        T[i,:,:] = (1/num)*xcent.t() @ (xcent * ycent[:,i].reshape((num, 1)))
     
-    return xbar, ybar, xxcov, xycov
+    return xbar, ybar, xxcov, xycov, T
 
 # takes a covariance matrix X as input
 # and returns U, S, V such that X ~ U * diag(S) * V^T
@@ -196,12 +205,57 @@ def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
 
     return (1/N)*wHv
 
+# the equivalent Hessian quadratic form for the epsilon delta^2 terms:
+
+# computes \delta^T (1/N) \sum_i \nabla_{x_ix_i}^2(log(S(model(x_i))_{class_val})) \delta
+# See project overleaf for details.
+
+# inputs identical to hess_svd, except for class_val
+# class_val indicates which corresponding class the current matrix inner product
+# is being taken w.r.t.
+def hess_svd_ed2(class_val, model, data_shape, X, Y, x1, x2, v, w):
+    # setting up pytorch stuff to prepare for backprop
+    vvar = Variable(v, requires_grad=True)
+    wvar = Variable(w, requires_grad=True)
+
+    # extract batch size
+    N = X.shape[0]
+    
+    Xvar = Variable(X, requires_grad=True)
+    Yvar = Variable(Y, requires_grad=True)
+    model_eval = model(Xvar.reshape(data_shape))
+
+    # here is where we take only the class_val component
+    model_eval_softmax = model_eval[:,class_val].exp().reshape((N,1)) / model_eval.exp().sum(axis=1).reshape((N, 1))
+
+    # choose which variable x1var corresponds to
+    x1var = Xvar if x1=='x' else Yvar
+    x2var = Xvar if x2=='x' else Yvar
+    
+    f_val = torch.log(model_eval_softmax).sum()
+
+    # gradient w.r.t. entire batch 
+    grad, = torch.autograd.grad(f_val, x1var, create_graph=True)
+    # sum over batch elements (avg. at end)
+    total = torch.sum(grad.sum(axis=0) * vvar)
+    
+    if Xvar.grad:
+        Xvar.grad.data.zero_()
+    if Yvar.grad:
+        Yvar.grad.data.zero_()
+    
+    # NOTE: THIS WILL NOT ALLOW FURTHER BACKPROP, BRING create_graph=True BACK TO ALLOW THIS
+    grad2, = torch.autograd.grad(total, x2var, create_graph=False, allow_unused=True)
+    # sum over rows (different elements in batch)
+    wHv = torch.sum(grad2.sum(axis=0) * wvar)
+
+    return (1/N)*wHv
 
 # theta_bar is 3/4
 # images and labels are not scaled down/flattened
 
 # returns regularization (non-loss) terms
-def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy):
+def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy, T_U, T_S, T_V):
     # extract batch size
     N = images.shape[0]
     # extract number of total pixels for images
@@ -233,7 +287,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     loss = (1/N)*cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
 
-    # COMPUTE delta delta^T term (term 2)
+    # COMPUTE delta delta term (term 2)
 
     # first compute the data-dependent part.
     V = (images_flat - mu_img_flat).detach().clone()
@@ -253,7 +307,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     gamma_squared = var_half_mixup + (1 - theta_bar)**2
     ddterm = 0.5*(var_half_mixup*data_dependent + gamma_squared * data_independent)
 
-    # COMPUTE epsilon delta^T "cross-term" (term 3)
+    # COMPUTE epsilon delta "cross-term" (term 3)
 
     # first compute the data-dependent part.
     W = (Y - mu_y).detach().clone()
@@ -271,4 +325,14 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     edterm = var_half_mixup*data_dependent_cross + gamma_squared * data_independent_cross
 
-    return loss, ddterm, edterm
+    # COMPUTE epsilon delta delta "3-term" (term 4, new)
+    hess_quad_innerprod = torch.zeros((1)).cuda()
+    # sum over classes
+    for i in range(num_classes):
+        # sum over all compoments we take from T_a matrices
+        for j in range(num_components):
+            hess_quad_innerprod += hess_svd_ed2(
+                i, model, batch_shape, Xt, Xt, 'x', 'x', T_S[i, j]*T_U[i, :, j].reshape((1, img_size)), T_V[i,:,j].reshape((1, img_size)))
+
+    eddterm = -0.5 * ((1-theta_bar)**3) * hess_quad_innerprod
+    return loss, ddterm, edterm, eddterm

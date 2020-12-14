@@ -363,9 +363,10 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         base_meter = AverageMeter()
         delta2_meter = AverageMeter()
         deltaeps_meter = AverageMeter()
+        delta2eps_meter = AverageMeter()
 
         for step, (data, targets) in enumerate(train_loader):
-            base, delta2, deltaeps = taylor.taylor_loss(
+            base, delta2, deltaeps, delta2eps = taylor.taylor_loss(
                 data.cuda(), targets.cuda(), model,
                 moment_dict['xbar'],
                 moment_dict['ybar'],
@@ -375,6 +376,9 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['Uxy'],
                 moment_dict['Sxy'],
                 moment_dict['Vxy'],
+                moment_dict['T_U'],
+                moment_dict['T_S'],
+                moment_dict['T_V'],
             )
 
             num = data.shape[0]
@@ -382,19 +386,22 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             base_meter.update(base.item(), num)
             delta2_meter.update(delta2.item(), num)
             deltaeps_meter.update(deltaeps.item(), num)
-            print("TEMP", base.item(), delta2.item(), deltaeps.item())
+            delta2eps_meter.update(delta2eps.item(), num)
+            print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item())
 
-        logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Total {:.4f}'.format(
+        logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Delta2eps {:.4f}, Total {:.4f}'.format(
             base_meter.avg,
             delta2_meter.avg,
             deltaeps_meter.avg,
-            base_meter.avg + delta2_meter.avg + deltaeps_meter.avg
+            delta2eps_meter.avg,
+            base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg
         ))
 
         ret.append(base_meter.avg)
         ret.append(delta2_meter.avg)
         ret.append(deltaeps_meter.avg)
-        ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg)
+        ret.append(delta2eps_meter.avg)
+        ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg)
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
@@ -518,14 +525,27 @@ def main():
     full_train_loader, _ = get_loader(config['data_config'], return_full=True)
     for batch in full_train_loader:
         full_images, full_labels = batch
-    full_targets = onehot(full_labels, config['data_config']['n_classes'])
-    xbar, ybar, xxcov, xycov = taylor.compute_moments(full_images, full_targets)
+
+    num_classes = config['data_config']['n_classes']
+    full_targets = onehot(full_labels, num_classes)
+    xbar, ybar, xxcov, xycov, T = taylor.compute_moments(full_images, full_targets)
     #torch.save(xbar, 'xbar.pt')
     #torch.save(ybar, 'ybar.pt')
     #torch.save(xxcov, 'xxcov.pt')
     #torch.save(xycov, 'xycov.pt')
-    Uxx, Sxx, Vxx = taylor.decomposition(xxcov, config['data_config']['cov_components'])
+    num_components = config['data_config']['cov_components']
+    Uxx, Sxx, Vxx = taylor.decomposition(xxcov, num_components)
     Uxy, Sxy, Vxy = taylor.decomposition(xycov, 10)
+
+    xdim = T.shape[1]
+    # svd's of T[i,:,:] slices
+    T_U = torch.zeros((num_classes, xdim, num_components))
+    T_S = torch.zeros((num_classes, num_components))
+    T_V = torch.zeros((num_classes, xdim, num_components))
+
+    for i in range(num_classes):
+        T_U[i,:,:], T_S[i,:], T_V[i,:,:] = taylor.decomposition(T[i,:,:], num_components)
+
     #torch.save(Uxx, 'Uxx.pt')
     #torch.save(Sxx, 'Sxx.pt')
     #torch.save(Vxx, 'Vxx.pt')
@@ -541,7 +561,10 @@ def main():
             'Vxx': Vxx.cuda(),
             'Vxy': Vxy.cuda(),
             'xbar': xbar.reshape(full_images.shape[1:]).cuda(),
-            'ybar': ybar.cuda()
+            'ybar': ybar.cuda(),
+            'T_U': T_U.cuda(),
+            'T_S': T_S.cuda(),
+            'T_V': T_V.cuda()
         }
     else:
         moment_dict = {
@@ -552,7 +575,10 @@ def main():
             'Vxx': Vxx,
             'Vxy': Vxy,
             'xbar': xbar.reshape(full_images.shape[1:]),
-            'ybar': ybar
+            'ybar': ybar,
+            'T_U': T_U,
+            'T_S': T_S,
+            'T_V': T_V
         }
 
     # set up dataframe for recording results:
@@ -567,6 +593,7 @@ def main():
         dfcols.append('taylor_base')
         dfcols.append('taylor_delta2')
         dfcols.append('taylor_deltaeps')
+        dfcols.append('taylor_delta2eps')
         dfcols.append('taylor_total')
     dfcols.append('test_loss')
     dfcols.append('test_acc')
