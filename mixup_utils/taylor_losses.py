@@ -219,7 +219,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # COMPUTE raw tilde loss (term 1)
     
     # we assume uniform distribution
-    theta_bar = 0.75
+    theta_bar = 0.75*torch.ones((1)).cuda()
     # matrix form for x_theta over whole batch
     Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
     # same for y_tilde
@@ -238,7 +238,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
 
-    data_independent = 0.0
+    data_independent = torch.zeros((1)).cuda()
     for i in range(num_components):
         data_independent += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
@@ -258,7 +258,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
 
-    data_independent = 0.0
+    data_independent = torch.zeros((1)).cuda()
     for i in range(num_components):
         data_independent += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, images_flat, Y, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
