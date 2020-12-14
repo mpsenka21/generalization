@@ -264,7 +264,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     data_independent_cross = torch.zeros((1)).cuda()
     for i in range(num_components):
-        data_independent += hess_svd(
+        data_independent_cross += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
 
     edterm = data_dependent_cross + gamma_squared * data_independent_cross

@@ -28,7 +28,7 @@
     "lr_decay": 0.1
   },
   "data_config": {
-    "dataset": "MiniMNIST",
+    "dataset": "MNIST",
     "num_per_class": 128,
     "n_classes": 10,
     "num_workers": 7,
