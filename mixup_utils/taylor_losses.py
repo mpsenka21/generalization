@@ -28,6 +28,9 @@ def cross_entropy_manual(X, Y):
 # compute matrix-vector products of the form:
 # (\nabla_{x1 x2}^2 loss(model(x), y)) @ v
 
+# data_shape is the original shape of the batch tensor (non-flattened
+# iamges)
+
 # X is a tensor of size (N, data_dim), where N is the size of the batch,
 # and data_dim is the dimension of the input data (flattened)
 
@@ -75,3 +78,38 @@ def hvp(loss, model, data_shape, X, Y, x1, x2, v):
     hvprod = (1/N)*grad2.sum(axis=0)
 
     return hvprod
+
+# computes quadratics of the form \sum w_i H(x/y_i, x/y_i) v_i over a batch
+def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
+    # setting up pytorch stuff to prepare for backprop
+    Vvar = Variable(V, requires_grad=True)
+    Wvar = Variable(W, requires_grad=True)
+
+    # extract batch size
+    N = X.shape[0]
+    
+    Xvar = Variable(X, requires_grad=True)
+    Yvar = Variable(Y, requires_grad=True)
+    model_eval = model(Xvar.reshape(data_shape))
+    
+    # choose which variable x1var corresponds to
+    x1var = Xvar if x1=='x' else Yvar
+    x2var = Xvar if x2=='x' else Yvar
+    
+    score = loss(model_eval, Yvar)
+
+    # gradient w.r.t. entire batch 
+    grad, = torch.autograd.grad(score, x1var, create_graph=True)
+    # sum over batch elements (avg. at end)
+    total = torch.sum(grad * Vvar)
+    
+    if Xvar.grad:
+        Xvar.grad.data.zero_()
+    if Yvar.grad:
+        Yvar.grad.data.zero_()
+    
+    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # sum over rows (different elements in batch)
+    wHv = torch.sum(W * grad2)
+
+    return (1/N)*wHv
