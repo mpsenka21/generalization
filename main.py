@@ -287,7 +287,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
             # vec to take action of hessian on
             V = torch.ones((1, int(data.numel() / N))).cuda()
-            hvprod = taylor.hvp(lambda x, y : apx.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'x', V)
+            hvprod = taylor.hvp(lambda x, y : taylor.cross_entropy_manual(x, y), model, data_shape, data_flat, y_vec, 'x', 'x', V)
             print(hvprod)
 
         if run_config['tensorboard']:
