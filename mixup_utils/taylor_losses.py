@@ -43,11 +43,12 @@ def decomposition(cov, n_components):
 # needed for hvp (see below)
 
 # X and Y are (N x x/y_dim) matrices, batch size N
+# NOTE: changed to natural logarithm by Seyoon
 def cross_entropy_manual(X, Y):
     # note X.shape[0] is the batch size
     X_softmax = X.exp() / X.exp().sum(axis=1).reshape((X.shape[0], 1))
     # TODO: check pytorch uses base 2
-    return -(Y * torch.log2(X_softmax)).sum()
+    return -(Y * torch.log(X_softmax)).sum()
 
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
