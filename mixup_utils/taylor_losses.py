@@ -148,7 +148,8 @@ def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
     if Yvar.grad:
         Yvar.grad.data.zero_()
     
-    grad2, = torch.autograd.grad(total, x2var, create_graph=True, allow_unused=True)
+    # NOTE: THIS WILL NOT ALLOW FURTHER BACKPROP, BRING create_graph=True BACK TO ALLOW THIS
+    grad2, = torch.autograd.grad(total, x2var, create_graph=False, allow_unused=True)
     # sum over rows (different elements in batch)
     wHv = torch.sum(W * grad2)
 
