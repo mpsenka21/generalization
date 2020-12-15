@@ -316,6 +316,7 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
     ret = [epoch, loss_meter.avg, accuracy_meter.avg]
 
     if data_config['use_mixup'] and (epoch <= 4 or epoch % 5 == 0):
+        model.eval()
         # reiterating through trainloader to completely separate the construction of the eval sets from the train set
         for step, (data, targets) in enumerate(train_loader):
             old_data = copy.deepcopy(data)
@@ -357,9 +358,11 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         ret.append(apxloss_train.item())
         ret.append(apxloss_eval.item())
         ret.append(apxloss_eval2.item())
+        model.train()
 
     # compute Taylor approximate loss
     if data_config['cov_components'] > 0 and (epoch <= 4 or epoch % 5 == 0):
+        model.eval()
         base_meter = AverageMeter()
         de_meter = AverageMeter()
 
@@ -491,6 +494,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
             ret.append(d2_meters[k].avg.item())
         for k in num_components_list:
             ret.append(d2e_meters[k].avg.item())
+        
+        model.train()
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
