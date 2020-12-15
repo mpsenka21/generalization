@@ -28,7 +28,7 @@ from utils import (str2bool, load_model, save_checkpoint, create_optimizer,
                    AverageMeter, mixup, CrossEntropyLoss, onehot)
 from argparser import get_config
 import mixup_utils.apx_losses as apx
-import mixup_utils.taylor_losses as taylor
+import mixup_utils.taylor_losses2 as taylor
 
 torch.backends.cudnn.benchmark = True
 
