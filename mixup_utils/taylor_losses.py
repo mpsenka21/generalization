@@ -61,14 +61,19 @@ def cross_entropy_manual(X, Y):
 
 # takes flattened data matrix X (shape (N by x_dim)) and one-hot targets
 # matrix Y, clones them (num_batches) times vertically.
-def make_megabatch(X, Y, U, S, V num_batches):
+
+# US is the product of U and S
+def make_megabatch(X, Y, US, V, num_batches):
+    batch_size = X.shape[0]
     X_mega = X.repeat(num_batches, 1).detach().clone()
     Y_mega = Y.repeat(num_batches, 1).detach().clone()
-    U_mega = torch.repeat_interleave(U, repeats=num_batches, dim=1)
-    S_mega = torch.repeat_interleave(S, repeats=num_batches, dim=1)
-    V_mega = torch.repeat_interleave(V, repeats=num_batches, dim=1)
+    US_mega = torch.repeat_interleave(US, repeats=batch_size, dim=1)
+    V_mega = torch.repeat_interleave(V, repeats=batch_size, dim=1)
 
-    return X_mega, Y_mega, U_mega, S_mega, V_mega
+    print(X_mega.shape)
+    print(US_mega.shape)
+
+    return X_mega, Y_mega, US_mega, V_mega
 
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
@@ -293,8 +298,9 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # same for y_tilde
     Yt = (1 - theta_bar)*mu_y + theta_bar*Y
 
-    torch.save(Xt, 'Xt.pt')
-    torch.save(Yt, 'Yt.pt')
+
+    # torch.save(Xt, 'Xt.pt')
+    # torch.save(Yt, 'Yt.pt')
 
     loss = (1/N)*cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
 
@@ -308,6 +314,8 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
+
+    a, b, c, d = make_megabatch(Xt, Yt, Uxx * Sxx.reshape((1, num_components)), Vxx, num_components)
 
     data_independent = torch.zeros((1)).cuda()
     for i in range(num_components):
