@@ -485,12 +485,12 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         for k in num_components_list:
             print("d2e", k, d2e_meters[k].count, d2e_meters[k].avg)
 
-        ret.append(base_meter.avg)
-        ret.append(de_meter.avg)
+        ret.append(base_meter.avg.item())
+        ret.append(de_meter.avg.item())
         for k in num_components_list:
-            ret.append(d2_meters[k].avg)
+            ret.append(d2_meters[k].avg.item())
         for k in num_components_list:
-            ret.append(d2e_meters[k].avg)
+            ret.append(d2e_meters[k].avg.item())
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
