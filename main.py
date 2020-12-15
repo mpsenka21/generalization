@@ -470,10 +470,10 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 if k <= kmax:
                     d2e_meters[k].update(d2e_dict[k], num)
 
-            print("Done a batch")
+            logger.info("Done batch", step)
         
 
-        print("CHECKS")
+        logger.info("CHECKS")
         print("Base", base_meter.count, base_meter.avg)
         print("DE", de_meter.count, de_meter.avg)
         for k in num_components_list:
