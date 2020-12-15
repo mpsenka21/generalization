@@ -64,7 +64,9 @@ def cross_entropy_manual(X, Y):
 
 # US is the product of U and S
 def make_megabatch(X, Y, US, V, num_batches):
+    # extract batch size
     batch_size = X.shape[0]
+
     X_mega = X.repeat(num_batches, 1).detach().clone()
     Y_mega = Y.repeat(num_batches, 1).detach().clone()
     US_mega = torch.repeat_interleave(US, repeats=batch_size, dim=1)
