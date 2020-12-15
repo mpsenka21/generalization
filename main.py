@@ -446,6 +446,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['T_V'],
             )
 
+            logger.info("Computed base, de, d2")
+
             for k in num_components_list:
                 d2_meters[k].update(d2_dict[k], num)
 
@@ -466,14 +468,16 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['T_V'][:, :, :kmax],
             )
 
+            logger.info("Computed d2e, batch id")
+
             for k in num_components_list:
                 if k <= kmax:
                     d2e_meters[k].update(d2e_dict[k], num)
 
-            print("Done a batch")
+            logger.info("Done batch")
         
 
-        print("CHECKS")
+        logger.info("CHECKS")
         print("Base", base_meter.count, base_meter.avg)
         print("DE", de_meter.count, de_meter.avg)
         for k in num_components_list:
@@ -481,12 +485,12 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         for k in num_components_list:
             print("d2e", k, d2e_meters[k].count, d2e_meters[k].avg)
 
-        ret.append(base_meter.avg)
-        ret.append(de_meter.avg)
+        ret.append(base_meter.avg.item())
+        ret.append(de_meter.avg.item())
         for k in num_components_list:
-            ret.append(d2_meters[k].avg)
+            ret.append(d2_meters[k].avg.item())
         for k in num_components_list:
-            ret.append(d2e_meters[k].avg)
+            ret.append(d2e_meters[k].avg.item())
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
