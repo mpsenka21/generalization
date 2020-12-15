@@ -1,0 +1,67 @@
+{
+  "model_config": {
+    "arch": "resnet",
+    "input_shape": [
+      1,
+      1,
+      28,
+      28
+    ],
+    "n_classes": 10,
+    "base_channels": 16,
+    "block_type": "basic",
+    "depth": 8
+  },
+  "optim_config": {
+    "epochs": 100,
+    "batch_size": 128,
+    "optimizer": "sgd",
+    "base_lr": 0.1,
+    "weight_decay": 0.0001,
+    "momentum": 0.9,
+    "nesterov": true,
+    "scheduler": "multistep",
+    "milestones": [
+      80,
+      120
+    ],
+    "lr_decay": 0.1
+  },
+  "data_config": {
+    "dataset": "MNIST",
+    "num_per_class": 128,
+    "n_classes": 10,
+    "num_workers": 7,
+    "batch_size": 128,
+    "use_cutout": false,
+    "use_random_erasing": false,
+    "use_mixup": true,
+    "mixup_alpha": 1,
+    "fixlam": -1,
+    "fixtrainlam": -1,
+    "doublesum_batches": 20,
+    "compute_mixup_reg": 0,
+    "cov_components": 200,
+    "use_gpu": true
+  },
+  "run_config": {
+    "outdir": "results",
+    "seed": 17,
+    "test_first": true,
+    "gpu": "0",
+    "tensorboard": false,
+    "tensorboard_train_images": false,
+    "tensorboard_test_images": false,
+    "tensorboard_model_params": false,
+    "use_gpu": true
+  },
+  "env_info": {
+    "pytorch_version": "1.7.0+cu101",
+    "cuda_version": "10.1",
+    "cudnn_version": 7603,
+    "gpu0": {
+      "name": "Tesla P100-PCIE-16GB",
+      "capability": "6.0"
+    }
+  }
+}
