@@ -313,9 +313,9 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                             accuracy_meter.avg,
                         ))
 
-    ret = [loss_meter.avg, accuracy_meter.avg]
+    ret = [epoch, loss_meter.avg, accuracy_meter.avg]
 
-    if data_config['use_mixup']:
+    if data_config['use_mixup'] and (epoch <= 4 or epoch % 5 == 0):
         # reiterating through trainloader to completely separate the construction of the eval sets from the train set
         for step, (data, targets) in enumerate(train_loader):
             old_data = copy.deepcopy(data)
@@ -359,14 +359,43 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         ret.append(apxloss_eval2.item())
 
     # compute Taylor approximate loss
-    if data_config['cov_components'] > 0:
+    if data_config['cov_components'] > 0 and (epoch <= 4 or epoch % 5 == 0):
         base_meter = AverageMeter()
-        delta2_meter = AverageMeter()
-        deltaeps_meter = AverageMeter()
-        delta2eps_meter = AverageMeter()
+        de_meter = AverageMeter()
+
+        d2_meters = {}
+        d2e_meters = {}
+
+        num_components_list = [1, 2, 5, 20, 50, 200]
+
+        for k in num_components_list:
+            d2_meters[k] = AverageMeter()
+            d2e_meters[k] = AverageMeter()
+
+        d2_batch_counts = {}
+
+        for k in num_components_list:
+            d2_batch_counts[k] = 10
+        
+        d2e_batch_counts = {
+            1: 10,
+            2: 10,
+            5: 4,
+            20: 2,
+            50: 2,
+            200: 1
+        }
+
+        max_batch_count = 10
 
         for step, (data, targets) in enumerate(train_loader):
-            base, delta2, deltaeps, delta2eps = taylor.taylor_loss(
+            if step == max_batch_count:
+                break
+
+            num = data.shape[0]
+
+            # base term
+            base = taylor.taylor_loss_base(
                 data.cuda(), targets.cuda(), model,
                 moment_dict['xbar'],
                 moment_dict['ybar'],
@@ -381,27 +410,83 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['T_V'],
             )
 
-            num = data.shape[0]
+            base_meter.update(base, num)
 
-            base_meter.update(base.item(), num)
-            delta2_meter.update(delta2.item(), num)
-            deltaeps_meter.update(deltaeps.item(), num)
-            delta2eps_meter.update(delta2eps.item(), num)
-            print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item(), base.item() + delta2.item() + deltaeps.item() + delta2eps.item())
+            # de term
+            de = taylor.taylor_loss_de(
+                data.cuda(), targets.cuda(), model,
+                moment_dict['xbar'],
+                moment_dict['ybar'],
+                moment_dict['Uxx'],
+                moment_dict['Sxx'],
+                moment_dict['Vxx'],
+                moment_dict['Uxy'],
+                moment_dict['Sxy'],
+                moment_dict['Vxy'],
+                moment_dict['T_U'],
+                moment_dict['T_S'],
+                moment_dict['T_V'],
+            )
 
-        logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Delta2eps {:.4f}, Total {:.4f}'.format(
-            base_meter.avg,
-            delta2_meter.avg,
-            deltaeps_meter.avg,
-            delta2eps_meter.avg,
-            base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg
-        ))
+            de_meter.update(de, num)
+
+            # d2 term
+            d2_dict = taylor.taylor_loss_d2(
+                data.cuda(), targets.cuda(), model,
+                moment_dict['xbar'],
+                moment_dict['ybar'],
+                moment_dict['Uxx'],
+                moment_dict['Sxx'],
+                moment_dict['Vxx'],
+                moment_dict['Uxy'],
+                moment_dict['Sxy'],
+                moment_dict['Vxy'],
+                moment_dict['T_U'],
+                moment_dict['T_S'],
+                moment_dict['T_V'],
+            )
+
+            for k in num_components_list:
+                d2_meters[k].update(d2_dict[k], num)
+
+            # d2e term
+            kmax = max([k for k in num_components_list if d2e_batch_counts[k] > step])
+            d2e_dict = taylor.taylor_loss_d2e(
+                data.cuda(), targets.cuda(), model,
+                moment_dict['xbar'],
+                moment_dict['ybar'],
+                moment_dict['Uxx'],
+                moment_dict['Sxx'],
+                moment_dict['Vxx'],
+                moment_dict['Uxy'],
+                moment_dict['Sxy'],
+                moment_dict['Vxy'],
+                moment_dict['T_U'][:, :, :kmax],
+                moment_dict['T_S'][:, :kmax],
+                moment_dict['T_V'][:, :, :kmax],
+            )
+
+            for k in num_components_list:
+                if k <= kmax:
+                    d2e_meters[k].update(d2e_dict[k], num)
+
+            print("Done a batch")
+        
+
+        print("CHECKS")
+        print("Base", base_meter.count, base_meter.avg)
+        print("DE", de_meter.count, de_meter.avg)
+        for k in num_components_list:
+            print("d2", k, d2_meters[k].count, d2_meters[k].avg)
+        for k in num_components_list:
+            print("d2e", k, d2e_meters[k].count, d2e_meters[k].avg)
 
         ret.append(base_meter.avg)
-        ret.append(delta2_meter.avg)
-        ret.append(deltaeps_meter.avg)
-        ret.append(delta2eps_meter.avg)
-        ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg)
+        ret.append(de_meter.avg)
+        for k in num_components_list:
+            ret.append(d2_meters[k].avg)
+        for k in num_components_list:
+            ret.append(d2e_meters[k].avg)
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
@@ -418,7 +503,10 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
         writer.add_scalar('Train/Accuracy', accuracy_meter.avg, epoch)
         writer.add_scalar('Train/Time', elapsed, epoch)
 
-    return ret
+    if epoch <= 4 or epoch % 5 == 0:
+        return ret
+    else:
+        return []
 
 def test(epoch, model, criterion, test_loader, run_config, writer):
     logger.info('Test {}'.format(epoch))
@@ -583,6 +671,7 @@ def main():
 
     # set up dataframe for recording results:
     dfcols = []
+    dfcols.append('epoch')
     dfcols.append('train_loss')
     dfcols.append('train_acc')
     if config['data_config']['use_mixup']:
@@ -591,10 +680,11 @@ def main():
         dfcols.append('doublesum_eval2')
     if config['data_config']['cov_components'] > 0:
         dfcols.append('taylor_base')
-        dfcols.append('taylor_delta2')
-        dfcols.append('taylor_deltaeps')
-        dfcols.append('taylor_delta2eps')
-        dfcols.append('taylor_total')
+        dfcols.append('taylor_de')
+        for k in [1, 2, 5, 20, 50, 200]:
+            dfcols.append('taylor_d2_' + str(k))
+        for k in [1, 2, 5, 20, 50, 200]:
+            dfcols.append('taylor_d2e_' + str(k))
     dfcols.append('test_loss')
     dfcols.append('test_acc')
 
@@ -645,8 +735,9 @@ def main():
         dfrow.append(test_loss)
         dfrow.append(accuracy)
 
-        resultsdf.loc[resultsdf.shape[0]] = list(dfrow)
-        resultsdf.to_csv(os.path.join(outdir, 'results.csv'))
+        if epoch <= 4 or epoch % 5 == 0:
+            resultsdf.loc[resultsdf.shape[0]] = list(dfrow)
+            resultsdf.to_csv(os.path.join(outdir, 'results.csv'))
 
         # update state dictionary
         state = update_state(state, epoch, accuracy, model, optimizer)
