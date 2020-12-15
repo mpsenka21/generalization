@@ -446,6 +446,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['T_V'],
             )
 
+            logger.info("Computed base, de, d2, batch id", step)
+
             for k in num_components_list:
                 d2_meters[k].update(d2_dict[k], num)
 
@@ -465,6 +467,8 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
                 moment_dict['T_S'][:, :kmax],
                 moment_dict['T_V'][:, :, :kmax],
             )
+
+            logger.info("Computed d2e, batch id", step)
 
             for k in num_components_list:
                 if k <= kmax:
