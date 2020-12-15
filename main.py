@@ -360,52 +360,48 @@ def train(epoch, model, optimizer, scheduler, criterion, train_loader, config,
 
     # compute Taylor approximate loss
     if data_config['cov_components'] > 0:
-        if epoch > 4:
-            base_meter = AverageMeter()
-            delta2_meter = AverageMeter()
-            deltaeps_meter = AverageMeter()
-            delta2eps_meter = AverageMeter()
+        base_meter = AverageMeter()
+        delta2_meter = AverageMeter()
+        deltaeps_meter = AverageMeter()
+        delta2eps_meter = AverageMeter()
 
-            for step, (data, targets) in enumerate(train_loader):
-                base, delta2, deltaeps, delta2eps = taylor.taylor_loss(
-                    data.cuda(), targets.cuda(), model,
-                    moment_dict['xbar'],
-                    moment_dict['ybar'],
-                    moment_dict['Uxx'],
-                    moment_dict['Sxx'],
-                    moment_dict['Vxx'],
-                    moment_dict['Uxy'],
-                    moment_dict['Sxy'],
-                    moment_dict['Vxy'],
-                    moment_dict['T_U'],
-                    moment_dict['T_S'],
-                    moment_dict['T_V'],
-                )
+        for step, (data, targets) in enumerate(train_loader):
+            base, delta2, deltaeps, delta2eps = taylor.taylor_loss(
+                data.cuda(), targets.cuda(), model,
+                moment_dict['xbar'],
+                moment_dict['ybar'],
+                moment_dict['Uxx'],
+                moment_dict['Sxx'],
+                moment_dict['Vxx'],
+                moment_dict['Uxy'],
+                moment_dict['Sxy'],
+                moment_dict['Vxy'],
+                moment_dict['T_U'],
+                moment_dict['T_S'],
+                moment_dict['T_V'],
+            )
 
-                num = data.shape[0]
+            num = data.shape[0]
 
-                base_meter.update(base.item(), num)
-                delta2_meter.update(delta2.item(), num)
-                deltaeps_meter.update(deltaeps.item(), num)
-                delta2eps_meter.update(delta2eps.item(), num)
-                print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item(), base.item() + delta2.item() + deltaeps.item() + delta2eps.item())
+            base_meter.update(base.item(), num)
+            delta2_meter.update(delta2.item(), num)
+            deltaeps_meter.update(deltaeps.item(), num)
+            delta2eps_meter.update(delta2eps.item(), num)
+            print("TEMP", base.item(), delta2.item(), deltaeps.item(), delta2eps.item(), base.item() + delta2.item() + deltaeps.item() + delta2eps.item())
 
-            logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Delta2eps {:.4f}, Total {:.4f}'.format(
-                base_meter.avg,
-                delta2_meter.avg,
-                deltaeps_meter.avg,
-                delta2eps_meter.avg,
-                base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg
-            ))
+        logger.info('Base {:.4f}, Delta2 {:.4f}, Deltaeps {:.4f}, Delta2eps {:.4f}, Total {:.4f}'.format(
+            base_meter.avg,
+            delta2_meter.avg,
+            deltaeps_meter.avg,
+            delta2eps_meter.avg,
+            base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg
+        ))
 
-            ret.append(base_meter.avg)
-            ret.append(delta2_meter.avg)
-            ret.append(deltaeps_meter.avg)
-            ret.append(delta2eps_meter.avg)
-            ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg)
-        else:
-            for asdf in range(5):
-                ret.append(0)
+        ret.append(base_meter.avg)
+        ret.append(delta2_meter.avg)
+        ret.append(deltaeps_meter.avg)
+        ret.append(delta2eps_meter.avg)
+        ret.append(base_meter.avg + delta2_meter.avg + deltaeps_meter.avg + delta2eps_meter.avg)
 
     elapsed = time.time() - start
     logger.info('Elapsed {:.2f}'.format(elapsed))
