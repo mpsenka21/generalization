@@ -549,6 +549,6 @@ def taylor_loss_d2e(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy
                 i, model, batch_shape, Xt, Xt, 'x', 'x', T_S[i, j]*T_U[i, :, j].reshape((1, img_size)), T_V[i,:,j].reshape((1, img_size)))
 
         if num_comps_to_compute.count(j+1) > 0:
-            return_dict[i+1] = -0.5 * ((1-theta_bar)**3) * hess_quad_innerprod
+            return_dict[j+1] = -0.5 * ((1-theta_bar)**3) * hess_quad_innerprod
 
     return return_dict
