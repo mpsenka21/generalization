@@ -74,22 +74,37 @@ def make_megabatch(X, Y, US, V, num_components):
 
     X_mega = X.repeat(num_components, 1).detach().clone()
     Y_mega = Y.repeat(num_components, 1).detach().clone()
-    US_mega = torch.repeat_interleave(US, repeats=batch_size, dim=1).detach()
-    V_mega = torch.repeat_interleave(V, repeats=batch_size, dim=1).detach()
+    US_mega = torch.repeat_interleave(US, repeats=batch_size, dim=1).detach().clone()
+    V_mega = torch.repeat_interleave(V, repeats=batch_size, dim=1).detach().clone()
 
-    print("XMEGA COMPARISON")
-    print(torch.sum(X[0]), torch.sum(X_mega[0]), torch.sum(X_mega[1]), torch.sum(X_mega[num_components-1]))
-    print("US_MEGA COMPARISON")
-    print(torch.sum(US[:, 0]), torch.sum(US_mega[:, 0]), torch.sum(US_mega[:, batch_size]))
-    print(torch.sum(US[:, 1]), torch.sum(US_mega[:, 1]), torch.sum(US_mega[:, 1+batch_size]))
-
-    print(X_mega.shape, Y_mega.shape, US_mega.shape, V_mega.shape)
     torch.save(X_mega, 'X_mega.pt')
     torch.save(Y_mega, 'Y_mega.pt')
     torch.save(US_mega, 'US_mega.pt')
     torch.save(V_mega, 'V_mega.pt')
 
     return X_mega, Y_mega, US_mega, V_mega
+
+def make_megabatch2(X, Y, US, V, num_components):
+    # extract batch size
+    batch_size = X.shape[0]
+    total = num_components * batch_size
+
+    X_multi = torch.zeros((num_components, batch_size, X.shape[1])).cuda()
+    Y_multi = torch.zeros((num_components, batch_size, Y.shape[1])).cuda()
+    US_multi = torch.zeros((batch_size, US.shape[0], num_components)).cuda()
+    V_multi = torch.zeros((batch_size, V.shape[0], num_components)).cuda()
+
+    X_multi[:] = X
+    Y_multi[:] = Y
+    US_multi[:] = US
+    V_multi[:] = V
+
+    X_multi = X_multi.reshape((total, X.shape[1])).detach().clone()
+    Y_multi = Y_multi.reshape((total, Y.shape[1])).detach().clone()
+    US_multi = US_multi.permute(2, 0, 1).reshape((total, US.shape[0])).t().detach().clone()
+    V_multi = V_multi.permute(2, 0, 1).reshape((total, V.shape[0])).t().detach().clone()
+
+    return X_multi, Y_multi, US_multi, V_multi
 
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
@@ -198,7 +213,7 @@ def hess_quadratic(loss, model, data_shape, X, Y, x1, x2, V, W):
     return (1/N)*wHv
 
 # Computes a quadratic of the form w^T \sum_i H(x_i, y_i) v, where H is a Hessian w.r.t. loss
-# v, w are vectors that come from an SVD. 
+# v, w are vectors that come from an SVD, both have a leading dimension of 1 
 #
 # v has the same dimension as what x1 corresponds to (x_dim if 'x', num_classes if 'y')
 # w has the same dimension as what x2 corresponds to
@@ -234,6 +249,15 @@ def hess_svd(loss, model, data_shape, X, Y, x1, x2, v, w):
     grad2, = torch.autograd.grad(total, x2var, create_graph=False, allow_unused=True)
     # sum over rows (different elements in batch)
     wHv = torch.sum(grad2.sum(axis=0) * wvar)
+
+    # COMPARISON WITH OUTPUT FROM HESS_QUADRATIC
+    #bigv = torch.zeros((X.shape[0], v.shape[1])).cuda()
+    #bigv[:, :] = v
+    #bigw = torch.zeros((X.shape[0], w.shape[1])).cuda()
+    #bigw[:, :] = w
+
+    #retval = hess_quadratic(loss, model, data_shape, X, Y, x1, x2, bigv, bigw)
+    #print("COMPARISON INSIDE HESS_SVD", retval, 1/N * wHv)
 
     return (1/N)*wHv
 
@@ -299,7 +323,7 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     images_flat = images.reshape((N, img_size))
     mu_img_flat = mu_img.reshape((1, img_size))
 
-    num_classes = labels.max() + 1
+    num_classes = 10 # labels.max() + 1
     # Y is a stack of rows, where each row is the one_hot version
     # of the correct label
     Y = torch.zeros((N, num_classes)).cuda()
@@ -331,8 +355,16 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
     t1 = time.time()
-    X_mega, Y_mega, US_mega, V_mega = make_megabatch(Xt, Yt, Uxx * Sxx.reshape((1, num_components)), Vxx, num_components)
+    X_mega, Y_mega, US_mega, V_mega = make_megabatch2(Xt, Yt, Uxx * Sxx.reshape((1, num_components)), Vxx, num_components)
+    #print((int(X_mega.numel()/img_size), batch_shape[1], batch_shape[2], batch_shape[3]))
     data_independent2 = num_components * hess_quadratic( # num_components is to fix normalisation
+        lambda x, y : cross_entropy_manual(x, y), model, (int(X_mega.numel()/img_size), batch_shape[1], batch_shape[2], batch_shape[3]),
+        X_mega, Y_mega, 'x', 'x', US_mega.t(), V_mega.t()
+    )
+
+    X_mega, Y_mega, US_mega, V_mega = make_megabatch(Xt, Yt, Uxx * Sxx.reshape((1, num_components)), Vxx, num_components)
+    #print((int(X_mega.numel()/img_size), batch_shape[1], batch_shape[2], batch_shape[3]))
+    data_independent3 = num_components * hess_quadratic( # num_components is to fix normalisation
         lambda x, y : cross_entropy_manual(x, y), model, (int(X_mega.numel()/img_size), batch_shape[1], batch_shape[2], batch_shape[3]),
         X_mega, Y_mega, 'x', 'x', US_mega.t(), V_mega.t()
     )
@@ -343,8 +375,22 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
         data_independent += hess_svd(
             lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
 
+    X_mega = Xt.repeat(num_components, 1).detach().clone()
+    Y_mega = Yt.repeat(num_components, 1).detach().clone()
+    US_mega = torch.zeros((N * num_components, img_size)).cuda()
+    V_mega = torch.zeros((N * num_components, img_size)).cuda()
+    for i in range(num_components):
+        US_mega[i*num_components:i*num_components+num_components, :] = Sxx[i]*Uxx[:,i].reshape((1, img_size))
+        V_mega[i*num_components:i*num_components+num_components, :] = Vxx[:,i].reshape((1, img_size))
+
+    data_independent4 = num_components * hess_quadratic( # num_components is to fix normalisation
+        lambda x, y : cross_entropy_manual(x, y), model, (int(X_mega.numel()/img_size), batch_shape[1], batch_shape[2], batch_shape[3]),
+        X_mega, Y_mega, 'x', 'x', US_mega, V_mega
+    )
+    
+
     t3 = time.time()
-    print("COMPARISON", data_independent2, t2 - t1, data_independent, t3 - t2)
+    print("COMPARISON", data_independent2, data_independent, data_independent4)
     var_half_mixup = 0.5**2 / 12
     gamma_squared = var_half_mixup + (1 - theta_bar)**2
     ddterm = 0.5*(var_half_mixup*data_dependent + gamma_squared * data_independent)
