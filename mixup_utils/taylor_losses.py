@@ -523,9 +523,6 @@ def taylor_loss_d2e(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy
 
     # first compute the data-dependent part.
     V = (images_flat - mu_img_flat).detach().clone()
-    # compute the data dependent component of inner product
-    data_dependent = hess_quadratic(
-        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', V, V)
     
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
