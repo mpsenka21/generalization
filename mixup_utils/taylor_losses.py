@@ -339,3 +339,216 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
 
     eddterm = -0.5 * ((1-theta_bar)**3) * hess_quad_innerprod
     return loss, ddterm, edterm, eddterm
+
+# returns regularization (non-loss) terms
+def taylor_loss_base(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy, T_U, T_S, T_V):
+    # extract batch size
+    N = images.shape[0]
+    # extract number of total pixels for images
+    img_size = int(images.numel() / N)
+    # extract original batch shape
+    batch_shape = images.shape
+
+    # flatten input images
+    images_flat = images.reshape((N, img_size))
+    mu_img_flat = mu_img.reshape((1, img_size))
+
+    num_classes = labels.max() + 1
+    # Y is a stack of rows, where each row is the one_hot version
+    # of the correct label
+    Y = torch.zeros((N, num_classes)).cuda()
+    Y[np.arange(N), labels] = 1
+
+    # COMPUTE raw tilde loss (term 1)
+    
+    # we assume uniform distribution
+    theta_bar = 0.75*torch.ones((1)).cuda()
+    # matrix form for x_theta over whole batch
+    Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
+    # same for y_tilde
+    Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+
+
+    # torch.save(Xt, 'Xt.pt')
+    # torch.save(Yt, 'Yt.pt')
+
+    return (1/N)*cross_entropy_manual(model(Xt.reshape(batch_shape)), Yt)
+
+# returns regularization (non-loss) terms
+def taylor_loss_d2(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy, T_U, T_S, T_V):
+    # extract batch size
+    N = images.shape[0]
+    # extract number of total pixels for images
+    img_size = int(images.numel() / N)
+    # extract original batch shape
+    batch_shape = images.shape
+
+    # flatten input images
+    images_flat = images.reshape((N, img_size))
+    mu_img_flat = mu_img.reshape((1, img_size))
+
+    num_classes = labels.max() + 1
+    # Y is a stack of rows, where each row is the one_hot version
+    # of the correct label
+    Y = torch.zeros((N, num_classes)).cuda()
+    Y[np.arange(N), labels] = 1
+
+    # COMPUTE raw tilde loss (term 1)
+    
+    # we assume uniform distribution
+    theta_bar = 0.75*torch.ones((1)).cuda()
+    # matrix form for x_theta over whole batch
+    Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
+    # same for y_tilde
+    Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+
+
+    # COMPUTE delta delta term (term 2)
+
+    # first compute the data-dependent part.
+    V = (images_flat - mu_img_flat).detach().clone()
+    # compute the data dependent component of inner product
+    data_dependent = hess_quadratic(
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', V, V)
+    
+    # extract number of singular values extracted from global covariance matrix
+    num_components = Sxx.numel()
+
+    return_dict = {}
+    num_comps_to_compute = [1, 2, 5, 20, 50, 200]
+
+    var_half_mixup = 0.5**2 / 12
+    gamma_squared = var_half_mixup + (1 - theta_bar)**2
+    
+    data_independent = torch.zeros((1)).cuda()
+    for i in range(num_components):
+        data_independent += hess_svd(
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', Sxx[i]*Uxx[:,i].reshape((1, img_size)), Vxx[:,i].reshape((1, img_size)))
+
+        if num_comps_to_compute.count(i+1) > 0 : # if i is in comps_to_compute
+            return_dict[i+1] = (0.5*(var_half_mixup*data_dependent + gamma_squared * data_independent))
+
+    return return_dict
+
+
+# returns regularization (non-loss) terms
+def taylor_loss_de(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy, T_U, T_S, T_V):
+    # extract batch size
+    N = images.shape[0]
+    # extract number of total pixels for images
+    img_size = int(images.numel() / N)
+    # extract original batch shape
+    batch_shape = images.shape
+
+    # flatten input images
+    images_flat = images.reshape((N, img_size))
+    mu_img_flat = mu_img.reshape((1, img_size))
+
+    num_classes = labels.max() + 1
+    # Y is a stack of rows, where each row is the one_hot version
+    # of the correct label
+    Y = torch.zeros((N, num_classes)).cuda()
+    Y[np.arange(N), labels] = 1
+
+    # COMPUTE raw tilde loss (term 1)
+    
+    # we assume uniform distribution
+    theta_bar = 0.75*torch.ones((1)).cuda()
+    # matrix form for x_theta over whole batch
+    Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
+    # same for y_tilde
+    Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+
+
+    # COMPUTE delta delta term (term 2)
+
+    # first compute the data-dependent part.
+    V = (images_flat - mu_img_flat).detach().clone()
+
+    num_components = Sxx.numel()
+
+    return_dict = {}
+    num_comps_to_compute = [1, 2, 5, 20, 50, 200]
+
+    var_half_mixup = 0.5**2 / 12
+    gamma_squared = var_half_mixup + (1 - theta_bar)**2
+
+    # first compute the data-dependent part.
+    W = (Y - mu_y).detach().clone()
+    # compute the data dependent component of inner product
+    data_dependent_cross = hess_quadratic(
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', V, W)
+    
+    # extract number of singular values extracted from global covariance matrix
+    num_components = Sxy.numel()
+
+    data_independent_cross = torch.zeros((1)).cuda()
+    for i in range(num_components):
+        data_independent_cross += hess_svd(
+            lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'y', Sxy[i]*Uxy[:,i].reshape((1, img_size)), Vxy[:,i].reshape((1, num_classes)))
+
+    return var_half_mixup*data_dependent_cross + gamma_squared * data_independent_cross
+
+
+# returns regularization (non-loss) terms
+def taylor_loss_d2e(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vxy, T_U, T_S, T_V):
+    # extract batch size
+    N = images.shape[0]
+    # extract number of total pixels for images
+    img_size = int(images.numel() / N)
+    # extract original batch shape
+    batch_shape = images.shape
+
+    # flatten input images
+    images_flat = images.reshape((N, img_size))
+    mu_img_flat = mu_img.reshape((1, img_size))
+
+    num_classes = labels.max() + 1
+    # Y is a stack of rows, where each row is the one_hot version
+    # of the correct label
+    Y = torch.zeros((N, num_classes)).cuda()
+    Y[np.arange(N), labels] = 1
+
+    # COMPUTE raw tilde loss (term 1)
+    
+    # we assume uniform distribution
+    theta_bar = 0.75*torch.ones((1)).cuda()
+    # matrix form for x_theta over whole batch
+    Xt = (1 - theta_bar)*mu_img_flat + theta_bar*images_flat
+    # same for y_tilde
+    Yt = (1 - theta_bar)*mu_y + theta_bar*Y
+
+
+    # COMPUTE delta delta term (term 2)
+
+    # first compute the data-dependent part.
+    V = (images_flat - mu_img_flat).detach().clone()
+    # compute the data dependent component of inner product
+    data_dependent = hess_quadratic(
+        lambda x, y : cross_entropy_manual(x, y), model, batch_shape, Xt, Yt, 'x', 'x', V, V)
+    
+    # extract number of singular values extracted from global covariance matrix
+    num_components = Sxx.numel()
+
+
+    var_half_mixup = 0.5**2 / 12
+    gamma_squared = var_half_mixup + (1 - theta_bar)**2
+
+    # update num components
+    num_components = T_S[0,:].numel()
+    return_dict = {}
+    num_comps_to_compute = [1, 2, 5, 20, 50, 200]
+
+    hess_quad_innerprod = torch.zeros((1)).cuda()
+
+    # sum over components
+    for j in range(num_components):
+        # sum over classes
+        for i in range(num_classes):
+            hess_quad_innerprod += hess_svd_ed2(
+                i, model, batch_shape, Xt, Xt, 'x', 'x', T_S[i, j]*T_U[i, :, j].reshape((1, img_size)), T_V[i,:,j].reshape((1, img_size)))
+
+        if num_comps_to_compute.count(j+1) > 0:
+            return_dict[i+1] = -0.5 * ((1-theta_bar)**3) * hess_quad_innerprod
+
+    return return_dict
