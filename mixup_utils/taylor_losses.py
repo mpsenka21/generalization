@@ -59,24 +59,6 @@ def cross_entropy_manual(X, Y):
     # TODO: check pytorch uses base 2
     return -(Y * torch.log(X_softmax)).sum()
 
-# takes flattened data matrix X (shape (N by x_dim)) and one-hot targets
-# matrix Y, clones them (num_batches) times vertically.
-
-# US is the product of U and S
-def make_megabatch(X, Y, US, V, num_batches):
-    # extract batch size
-    batch_size = X.shape[0]
-
-    X_mega = X.repeat(num_batches, 1).detach().clone()
-    Y_mega = Y.repeat(num_batches, 1).detach().clone()
-    US_mega = torch.repeat_interleave(US, repeats=batch_size, dim=1)
-    V_mega = torch.repeat_interleave(V, repeats=batch_size, dim=1)
-
-    print(X_mega.shape)
-    print(US_mega.shape)
-
-    return X_mega, Y_mega, US_mega, V_mega
-
 # given a pytorch function loss(x_i, y_i) (twice differentiable)
 # and a neural network 'model', 
 # compute matrix-vector products of the form:
@@ -316,8 +298,6 @@ def taylor_loss(images, labels, model, mu_img, mu_y, Uxx, Sxx, Vxx, Uxy, Sxy, Vx
     
     # extract number of singular values extracted from global covariance matrix
     num_components = Sxx.numel()
-
-    a, b, c, d = make_megabatch(Xt, Yt, Uxx * Sxx.reshape((1, num_components)), Vxx, num_components)
 
     data_independent = torch.zeros((1)).cuda()
     for i in range(num_components):
